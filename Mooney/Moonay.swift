@@ -12,6 +12,10 @@
 
 import SwiftUI
 import Charts
+import Observation
+import UIKit
+import UniformTypeIdentifiers
+
 
 // MARK: - Models
 
@@ -22,10 +26,40 @@ struct Bucket: Identifiable, Codable, Equatable, Hashable {
     var isActive: Bool
     var archived: Bool
     var goal: Double?
+    var goalDate: String?
     var isSpending: Bool
     var order: Int
 
     var color: Color { Color(hex: colorHex) }
+
+    init(id: String, name: String, colorHex: String, isActive: Bool, archived: Bool, goal: Double?, goalDate: String? = nil, isSpending: Bool, order: Int) {
+        self.id = id
+        self.name = name
+        self.colorHex = colorHex
+        self.isActive = isActive
+        self.archived = archived
+        self.goal = goal
+        self.goalDate = goalDate
+        self.isSpending = isSpending
+        self.order = order
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, colorHex, isActive, archived, goal, goalDate, isSpending, order
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        colorHex = try container.decode(String.self, forKey: .colorHex)
+        isActive = try container.decode(Bool.self, forKey: .isActive)
+        archived = try container.decode(Bool.self, forKey: .archived)
+        goal = try container.decodeIfPresent(Double.self, forKey: .goal)
+        goalDate = try container.decodeIfPresent(String.self, forKey: .goalDate)
+        isSpending = try container.decode(Bool.self, forKey: .isSpending)
+        order = try container.decode(Int.self, forKey: .order)
+    }
 }
 
 struct Allocation: Codable, Hashable {
@@ -33,12 +67,76 @@ struct Allocation: Codable, Hashable {
     var amount: Double
 }
 
+struct Bill: Identifiable, Codable, Equatable, Hashable {
+    var id: String
+    var name: String
+    var amount: Double
+    var isActive: Bool
+    var order: Int
+}
+
+struct BillPayment: Identifiable, Codable, Hashable {
+    var id: String
+    var billId: String
+    var name: String
+    var amount: Double
+    var isPaid: Bool
+    var paidDate: String?
+
+    init(id: String, billId: String, name: String, amount: Double, isPaid: Bool = false, paidDate: String? = nil) {
+        self.id = id
+        self.billId = billId
+        self.name = name
+        self.amount = amount
+        self.isPaid = isPaid
+        self.paidDate = paidDate
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id, billId, name, amount, isPaid, paidDate
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        billId = try container.decode(String.self, forKey: .billId)
+        name = try container.decode(String.self, forKey: .name)
+        amount = try container.decode(Double.self, forKey: .amount)
+        isPaid = try container.decodeIfPresent(Bool.self, forKey: .isPaid) ?? true
+        paidDate = try container.decodeIfPresent(String.self, forKey: .paidDate)
+    }
+}
+
 struct Paycheck: Identifiable, Codable, Hashable {
     var id: String
     var date: String  // yyyy-MM-dd
     var amount: Double
     var note: String
+    var bills: [BillPayment]
     var allocations: [Allocation]
+
+    init(id: String, date: String, amount: Double, note: String, bills: [BillPayment] = [], allocations: [Allocation]) {
+        self.id = id
+        self.date = date
+        self.amount = amount
+        self.note = note
+        self.bills = bills
+        self.allocations = allocations
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id, date, amount, note, bills, allocations
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        date = try container.decode(String.self, forKey: .date)
+        amount = try container.decode(Double.self, forKey: .amount)
+        note = try container.decode(String.self, forKey: .note)
+        bills = try container.decodeIfPresent([BillPayment].self, forKey: .bills) ?? []
+        allocations = try container.decode([Allocation].self, forKey: .allocations)
+    }
 }
 
 struct AppTransaction: Identifiable, Codable {
@@ -54,11 +152,68 @@ struct AppState: Codable {
     var buckets: [Bucket]
     var paychecks: [Paycheck]
     var transactions: [AppTransaction]
+    var bills: [Bill]
+
+    init(buckets: [Bucket], paychecks: [Paycheck], transactions: [AppTransaction], bills: [Bill] = seedBills) {
+        self.buckets = buckets
+        self.paychecks = paychecks
+        self.transactions = transactions
+        self.bills = bills
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case buckets, paychecks, transactions, bills
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        buckets = try container.decode([Bucket].self, forKey: .buckets)
+        paychecks = try container.decode([Paycheck].self, forKey: .paychecks)
+        transactions = try container.decode([AppTransaction].self, forKey: .transactions)
+        bills = try container.decodeIfPresent([Bill].self, forKey: .bills) ?? seedBills
+    }
+}
+
+struct MoonayBackupDocument: FileDocument {
+    static var readableContentTypes: [UTType] { [.json] }
+
+    var data: Data
+
+    init(data: Data) {
+        self.data = data
+    }
+
+    init(configuration: ReadConfiguration) throws {
+        data = configuration.file.regularFileContents ?? Data()
+    }
+
+    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
+        FileWrapper(regularFileWithContents: data)
+    }
+}
+
+enum BackupError: LocalizedError {
+    case emptyFile
+    case invalidBackup
+
+    var errorDescription: String? {
+        switch self {
+        case .emptyFile:
+            return "That backup file was empty."
+        case .invalidBackup:
+            return "That file does not look like a Moonay backup."
+        }
+    }
 }
 
 // MARK: - Seed Data
 
 private func al(_ id: String, _ amt: Double) -> Allocation { Allocation(bucketId: id, amount: amt) }
+
+private let seedBills: [Bill] = [
+    Bill(id: "car_payment", name: "Car Payment", amount: 250, isActive: true, order: 0),
+    Bill(id: "phone_bill", name: "Phone Bill", amount: 25, isActive: true, order: 1),
+]
 
 private let seedBuckets: [Bucket] = [
     Bucket(id:"savings",     name:"Savings",     colorHex:"#7C3AED", isActive:true,  archived:false, goal:nil,   isSpending:false, order:0),
@@ -130,10 +285,12 @@ private let seedTransactions: [AppTransaction] = [
 
 @Observable
 class AppStore {
+    static let storageKey = "moonay_v2"
+
     var state: AppState
 
     init() {
-        if let data = UserDefaults.standard.data(forKey: "moonay_v2"),
+        if let data = UserDefaults.standard.data(forKey: Self.storageKey),
            let saved = try? JSONDecoder().decode(AppState.self, from: data) {
             state = saved
         } else {
@@ -143,7 +300,7 @@ class AppStore {
 
     private func save() {
         if let data = try? JSONEncoder().encode(state) {
-            UserDefaults.standard.set(data, forKey: "moonay_v2")
+            UserDefaults.standard.set(data, forKey: Self.storageKey)
         }
     }
 
@@ -152,13 +309,29 @@ class AppStore {
     func addPaycheck(_ p: Paycheck)      { state.paychecks.append(p); save() }
     func addTransaction(_ t: AppTransaction) { state.transactions.append(t); save() }
     func addBucket(_ b: Bucket)          { state.buckets.append(b); save() }
+    func addBill(_ b: Bill)              { state.bills.append(b); save() }
 
-    func updateBucket(id: String, name: String, colorHex: String, goal: Double?, isSpending: Bool) {
+    func updateBucket(id: String, name: String, colorHex: String, goal: Double?, goalDate: String?, isSpending: Bool) {
         guard let i = state.buckets.firstIndex(where: { $0.id == id }) else { return }
         state.buckets[i].name = name
         state.buckets[i].colorHex = colorHex
         state.buckets[i].goal = goal
+        state.buckets[i].goalDate = goalDate
         state.buckets[i].isSpending = isSpending
+        save()
+    }
+
+    func updatePaycheck(_ paycheck: Paycheck) {
+        guard let i = state.paychecks.firstIndex(where: { $0.id == paycheck.id }) else { return }
+        state.paychecks[i] = paycheck
+        save()
+    }
+
+    func setBillPaymentPaid(paycheckId: String, paymentId: String, isPaid: Bool) {
+        guard let paycheckIndex = state.paychecks.firstIndex(where: { $0.id == paycheckId }),
+              let billIndex = state.paychecks[paycheckIndex].bills.firstIndex(where: { $0.id == paymentId }) else { return }
+        state.paychecks[paycheckIndex].bills[billIndex].isPaid = isPaid
+        state.paychecks[paycheckIndex].bills[billIndex].paidDate = isPaid ? todayISO() : nil
         save()
     }
 
@@ -175,6 +348,19 @@ class AppStore {
         save()
     }
 
+    func updateBill(id: String, name: String, amount: Double) {
+        guard let i = state.bills.firstIndex(where: { $0.id == id }) else { return }
+        state.bills[i].name = name
+        state.bills[i].amount = amount
+        save()
+    }
+
+    func toggleBillActive(id: String) {
+        guard let i = state.bills.firstIndex(where: { $0.id == id }) else { return }
+        state.bills[i].isActive.toggle()
+        save()
+    }
+
     func moveBuckets(from source: IndexSet, to destination: Int, among list: [Bucket]) {
         var ids = list.map { $0.id }
         ids.move(fromOffsets: source, toOffset: destination)
@@ -188,6 +374,32 @@ class AppStore {
 
     func resetData() {
         state = AppState(buckets: seedBuckets, paychecks: seedPaychecks, transactions: seedTransactions)
+        save()
+    }
+
+    func clearFinancialData() {
+        state.paychecks = []
+        state.transactions = []
+        save()
+    }
+
+    func backupData() throws -> Data {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        return try encoder.encode(state)
+    }
+
+    func decodedBackup(from data: Data) throws -> AppState {
+        guard !data.isEmpty else { throw BackupError.emptyFile }
+        do {
+            return try JSONDecoder().decode(AppState.self, from: data)
+        } catch {
+            throw BackupError.invalidBackup
+        }
+    }
+
+    func restoreBackup(_ backup: AppState) {
+        state = backup
         save()
     }
 
@@ -208,17 +420,63 @@ class AppStore {
         return 0
     }
 
+    func averageAlloc(for bucketId: String) -> Double {
+        let values = state.paychecks
+            .flatMap { $0.allocations }
+            .filter { $0.bucketId == bucketId }
+            .map(\.amount)
+        guard !values.isEmpty else { return 0 }
+        return values.reduce(0, +) / Double(values.count)
+    }
+
+    func suggestedGoalContribution(for bucket: Bucket) -> Double? {
+        guard !bucket.isSpending,
+              let goal = bucket.goal,
+              let goalDate = bucket.goalDate,
+              let target = isoDateFormatter.date(from: goalDate) else { return nil }
+        let needed = goal - balance(for: bucket.id)
+        guard needed > 0 else { return 0 }
+        let days = max(Calendar.current.dateComponents([.day], from: Date(), to: target).day ?? 0, 0)
+        let paychecks = max(ceil(Double(days) / 14.0), 1)
+        return needed / paychecks
+    }
+
     var lastPaycheck: Paycheck? { state.paychecks.sorted { $0.date > $1.date }.first }
+
+    var savingsBucketIds: Set<String> {
+        Set(state.buckets.filter { !$0.isSpending }.map(\.id))
+    }
 
     var activeBuckets: [Bucket] {
         state.buckets.filter { !$0.archived && $0.isActive }.sorted { $0.order < $1.order }
     }
     var savingsBuckets: [Bucket]  { activeBuckets.filter { !$0.isSpending } }
     var spendingBuckets: [Bucket] { activeBuckets.filter {  $0.isSpending } }
-    var totalSavings: Double      { savingsBuckets.reduce(0) { $0 + balance(for: $1.id) } }
+    var unpaidBillPayments: [(paycheck: Paycheck, bill: BillPayment)] {
+        state.paychecks.flatMap { paycheck in
+            paycheck.bills
+                .filter { !$0.isPaid }
+                .map { (paycheck: paycheck, bill: $0) }
+        }
+        .sorted { $0.paycheck.date > $1.paycheck.date }
+    }
+
+    var unpaidBillsTotal: Double {
+        unpaidBillPayments.reduce(0) { $0 + $1.bill.amount }
+    }
+
+    var totalSavings: Double      { savingsBuckets.reduce(0) { $0 + balance(for: $1.id) } + unpaidBillsTotal }
 
     var sortedNonArchived: [Bucket] {
         state.buckets.filter { !$0.archived }.sorted { $0.order < $1.order }
+    }
+
+    var activeBills: [Bill] {
+        state.bills.filter { $0.isActive }.sorted { $0.order < $1.order }
+    }
+
+    var sortedBills: [Bill] {
+        state.bills.sorted { $0.order < $1.order }
     }
 }
 
@@ -248,17 +506,23 @@ private let _currencyFmt: NumberFormatter = {
     let f = NumberFormatter(); f.numberStyle = .currency; f.currencyCode = "USD"; return f
 }()
 
+private let isoDateFormatter: DateFormatter = {
+    let df = DateFormatter()
+    df.dateFormat = "yyyy-MM-dd"
+    return df
+}()
+
 func fmt(_ n: Double) -> String { _currencyFmt.string(from: NSNumber(value: n)) ?? "$0.00" }
 
 func fmtDate(_ iso: String) -> String {
-    let df = DateFormatter(); df.dateFormat = "yyyy-MM-dd"
-    guard let d = df.date(from: iso) else { return iso }
+    guard let d = isoDateFormatter.date(from: iso) else { return iso }
+    let df = DateFormatter()
     df.dateStyle = .medium; df.timeStyle = .none
     return df.string(from: d)
 }
 
 func todayISO() -> String {
-    let df = DateFormatter(); df.dateFormat = "yyyy-MM-dd"; return df.string(from: Date())
+    isoDateFormatter.string(from: Date())
 }
 
 // MARK: - App Entry Point
@@ -311,12 +575,41 @@ struct DashboardView: View {
                             .font(.caption).foregroundStyle(.secondary)
                         Text(fmt(store.totalSavings))
                             .font(.system(size: 42, weight: .bold))
-                        Text("Across \(store.savingsBuckets.count) savings buckets")
+                        Text(store.unpaidBillsTotal > 0
+                             ? "Includes \(fmt(store.unpaidBillsTotal)) waiting for bills"
+                             : "Across \(store.savingsBuckets.count) savings buckets")
                             .font(.caption).foregroundStyle(.secondary)
                     }
                     .padding(.vertical, 6)
                 }
                 .listRowBackground(Color.clear)
+
+                if !store.unpaidBillPayments.isEmpty {
+                    Section("Bills To Pay") {
+                        ForEach(store.unpaidBillPayments, id: \.bill.id) { item in
+                            HStack(spacing: 10) {
+                                Button {
+                                    store.setBillPaymentPaid(paycheckId: item.paycheck.id, paymentId: item.bill.id, isPaid: true)
+                                } label: {
+                                    Image(systemName: "circle")
+                                        .font(.title3)
+                                }
+                                .buttonStyle(.plain)
+                                .foregroundStyle(Color(hex: "#7C3AED"))
+
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(item.bill.name)
+                                    Text(fmtDate(item.paycheck.date))
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                Text(fmt(item.bill.amount))
+                                    .fontWeight(.semibold)
+                            }
+                        }
+                    }
+                }
 
                 // ── Last paycheck ──
                 if let last = store.lastPaycheck {
@@ -347,25 +640,26 @@ struct DashboardView: View {
 
                 // ── Spending buckets — quiet footer ──
                 if !store.spendingBuckets.isEmpty, store.lastPaycheck != nil {
-                    Section {
-                        FlowRow(spacing: 14) {
-                            Text("THIS CHECK")
-                                .font(.system(size: 11, weight: .semibold))
-                                .foregroundStyle(Color(.tertiaryLabel))
+                    Section("This Check") {
+                        VStack(spacing: 8) {
                             ForEach(store.spendingBuckets) { b in
                                 Button { selectedBucket = b } label: {
-                                    HStack(spacing: 4) {
+                                    HStack(spacing: 8) {
                                         RoundedRectangle(cornerRadius: 2)
-                                            .fill(b.color).frame(width: 7, height: 7)
+                                            .fill(b.color).frame(width: 8, height: 8)
                                         Text(b.name)
                                             .font(.system(size: 13)).foregroundStyle(.secondary)
+                                        Spacer()
                                         Text(fmt(store.lastAlloc(for: b.id)))
-                                            .font(.system(size: 13)).foregroundStyle(Color(.tertiaryLabel))
+                                            .font(.system(size: 13, weight: .medium))
+                                            .foregroundStyle(Color(.tertiaryLabel))
                                     }
+                                    .contentShape(Rectangle())
                                 }
                                 .buttonStyle(.plain)
                             }
                         }
+                        .padding(.vertical, 2)
                     }
                 }
             }
@@ -379,14 +673,20 @@ struct DashboardView: View {
 // Horizontal wrapping layout for the spending footer
 struct FlowRow<Content: View>: View {
     let spacing: CGFloat
-    @ViewBuilder let content: Content
+    private let content: () -> Content
+
+    init(spacing: CGFloat, @ViewBuilder content: @escaping () -> Content) {
+        self.spacing = spacing
+        self.content = content
+    }
 
     var body: some View {
-        // SwiftUI 16+ doesn't have a native flow layout, so use a simple HStack with wrap
-        // For a small number of items this HStack is fine; add ViewThatFits if needed
-        HStack(spacing: spacing) { content }
+        HStack(spacing: spacing) {
+            content()
+        }
     }
 }
+
 
 // MARK: - Bucket Row
 
@@ -408,6 +708,9 @@ struct BucketRowView: View {
                 Text(bucket.name)
                 if let g = bucket.goal {
                     Text(goalMet ? "Goal reached" : "Goal: \(fmt(g))")
+                        .font(.caption).foregroundStyle(.secondary)
+                } else if let goalDate = bucket.goalDate {
+                    Text("Save by \(fmtDate(goalDate))")
                         .font(.caption).foregroundStyle(.secondary)
                 }
             }
@@ -471,111 +774,16 @@ struct BucketDetailView: View {
             .compactMap { p -> Double? in
                 p.allocations.first(where: { $0.bucketId == bucket.id })?.amount
             }
-        return contribs.suffix(10).enumerated().map { (.init($0.offset), $0.element) }
+        return contribs.suffix(10).enumerated().map { (index: $0.offset, value: $0.element) }
     }
 
     var body: some View {
         NavigationStack {
             List {
-                // ── Balance header ──
-                Section {
-                    VStack(alignment: .leading, spacing: 12) {
-                        HStack(spacing: 12) {
-                            RoundedRectangle(cornerRadius: 10)
-                                .fill(bucket.color).frame(width: 40, height: 40)
-                            Text(bucket.isSpending ? "Spending allocation"
-                                 : goalMet ? "Goal reached!" : "Savings bucket")
-                                .font(.caption).foregroundStyle(.secondary)
-                        }
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(bucket.isSpending ? "Last paycheck" : "Balance")
-                                .font(.caption).foregroundStyle(.secondary)
-                            Text(fmt(bucket.isSpending ? lastA : balance))
-                                .font(.system(size: 38, weight: .bold))
-                        }
-                        if !bucket.isSpending, let goal = bucket.goal {
-                            VStack(spacing: 4) {
-                                HStack {
-                                    Text("\(fmt(balance)) of \(fmt(goal))")
-                                    Spacer()
-                                    Text("\(min(Int((balance / goal) * 100), 100))%")
-                                }
-                                .font(.caption).foregroundStyle(.secondary)
-                                ProgressView(value: min(balance / goal, 1.0))
-                                    .tint(goalMet ? Color(hex: "#F59E0B") : bucket.color)
-                            }
-                        }
-                    }
-                    .padding(.vertical, 4)
-                }
-
-                // ── Spend / info ──
-                if bucket.isSpending {
-                    Section {
-                        Text("This is your spending account. Allocations are logged each paycheck — no need to track individual purchases here.")
-                            .font(.callout).foregroundStyle(.secondary)
-                    }
-                } else {
-                    Section {
-                        if !showSpendForm {
-                            Button("Record Spending") { showSpendForm = true }
-                                .foregroundStyle(bucket.color)
-                        } else {
-                            VStack(spacing: 10) {
-                                HStack {
-                                    Text("$").foregroundStyle(.secondary)
-                                    TextField("0.00", text: $spendAmt).keyboardType(.decimalPad)
-                                    Divider()
-                                    TextField("Note", text: $spendNote)
-                                }
-                                HStack(spacing: 10) {
-                                    Button("Save") { saveSpend() }
-                                        .buttonStyle(.borderedProminent).tint(bucket.color)
-                                    Button("Cancel") {
-                                        showSpendForm = false; spendAmt = ""; spendNote = ""
-                                    }
-                                    .buttonStyle(.bordered)
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // ── Bar chart ──
-                if barData.count > 1 {
-                    Section("Contribution History") {
-                        Chart(barData, id: \.index) { item in
-                            BarMark(x: .value("Pay", item.index),
-                                    y: .value("Amount", item.value))
-                            .foregroundStyle(bucket.color.opacity(0.75))
-                            .cornerRadius(3)
-                        }
-                        .chartXAxis(.hidden)
-                        .chartYAxis(.hidden)
-                        .frame(height: 64)
-                    }
-                }
-
-                // ── Transaction history ──
-                Section("Transactions") {
-                    if history.isEmpty {
-                        Text("No transactions yet").foregroundStyle(.secondary)
-                    } else {
-                        ForEach(history) { item in
-                            HStack {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(item.label)
-                                    Text(fmtDate(item.date))
-                                        .font(.caption).foregroundStyle(.secondary)
-                                }
-                                Spacer()
-                                Text((item.amount >= 0 ? "+" : "") + fmt(item.amount))
-                                    .fontWeight(.semibold)
-                                    .foregroundStyle(item.amount >= 0 ? .primary : .red)
-                            }
-                        }
-                    }
-                }
+                headerSection
+                spendSection
+                chartSection
+                historySection
             }
             .listStyle(.insetGrouped)
             .navigationTitle(bucket.name)
@@ -583,6 +791,115 @@ struct BucketDetailView: View {
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var headerSection: some View {
+        Section {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 12) {
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(bucket.color).frame(width: 40, height: 40)
+                    let subtitle = bucket.isSpending ? "Spending allocation"
+                        : goalMet ? "Goal reached!" : "Savings bucket"
+                    Text(subtitle).font(.caption).foregroundStyle(.secondary)
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(bucket.isSpending ? "Last paycheck" : "Balance")
+                        .font(.caption).foregroundStyle(.secondary)
+                    Text(fmt(bucket.isSpending ? lastA : balance))
+                        .font(.system(size: 38, weight: .bold))
+                }
+                if !bucket.isSpending, let goal = bucket.goal {
+                    let pct = min(Int((balance / goal) * 100), 100)
+                    VStack(spacing: 4) {
+                        HStack {
+                            Text("\(fmt(balance)) of \(fmt(goal))")
+                            Spacer()
+                            Text("\(pct)%")
+                        }
+                        .font(.caption).foregroundStyle(.secondary)
+                        ProgressView(value: min(balance / goal, 1.0))
+                            .tint(goalMet ? Color(hex: "#F59E0B") : bucket.color)
+                    }
+                }
+            }
+            .padding(.vertical, 4)
+        }
+    }
+
+    @ViewBuilder
+    private var spendSection: some View {
+        if bucket.isSpending {
+            Section {
+                Text("This is your spending account. Allocations are logged each paycheck — no need to track individual purchases here.")
+                    .font(.callout).foregroundStyle(.secondary)
+            }
+        } else {
+            Section {
+                if !showSpendForm {
+                    Button("Record Spending") { showSpendForm = true }
+                        .foregroundStyle(bucket.color)
+                } else {
+                    VStack(spacing: 10) {
+                        HStack {
+                            Text("$").foregroundStyle(.secondary)
+                            TextField("0.00", text: $spendAmt).keyboardType(.decimalPad)
+                            Divider()
+                            TextField("Note", text: $spendNote)
+                        }
+                        HStack(spacing: 10) {
+                            Button("Save") { saveSpend() }
+                                .buttonStyle(.borderedProminent).tint(bucket.color)
+                            Button("Cancel") {
+                                showSpendForm = false; spendAmt = ""; spendNote = ""
+                            }
+                            .buttonStyle(.bordered)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var chartSection: some View {
+        if barData.count > 1 {
+            Section("Contribution History") {
+                Chart(barData, id: \.index) { item in
+                    BarMark(x: .value("Pay", item.index),
+                            y: .value("Amount", item.value))
+                    .foregroundStyle(bucket.color.opacity(0.75))
+                    .cornerRadius(3)
+                }
+                .chartXAxis(.hidden)
+                .chartYAxis(.hidden)
+                .frame(height: 64)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var historySection: some View {
+        Section("Transactions") {
+            if history.isEmpty {
+                Text("No transactions yet").foregroundStyle(.secondary)
+            } else {
+                ForEach(history) { (item: HistoryItem) in
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(item.label)
+                            Text(fmtDate(item.date))
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Text((item.amount >= 0 ? "+" : "") + fmt(item.amount))
+                            .fontWeight(.semibold)
+                            .foregroundStyle(item.amount >= 0 ? Color.primary : Color.red)
+                    }
                 }
             }
         }
@@ -605,26 +922,40 @@ struct BucketDetailView: View {
 struct AddPaycheckView: View {
     @Environment(AppStore.self) var store
 
+    var paycheckToEdit: Paycheck?
+    var onSaved: (() -> Void)?
+
     @State private var date     = Date()
     @State private var totalStr = ""
     @State private var note     = ""
+    @State private var billAmounts = [String: String]()
+    @State private var includedBills = Set<String>()
     @State private var allocs   = [String: String]()
     @State private var saved    = false
 
     var total: Double { Double(totalStr) ?? 0 }
+    var billTotal: Double {
+        store.activeBills.reduce(0) { sum, bill in
+            guard includedBills.contains(bill.id) else { return sum }
+            return sum + (Double(billAmounts[bill.id] ?? "") ?? 0)
+        }
+    }
     var allocated: Double {
         store.activeBuckets.reduce(0) { $0 + (Double(allocs[$1.id] ?? "") ?? 0) }
     }
-    var remaining: Double { total - allocated }
+    var envelopeMoney: Double { total - billTotal }
+    var remaining: Double { envelopeMoney - allocated }
     var isGood:  Bool { abs(remaining) < 0.005 }
     var isClose: Bool { abs(remaining) < 1 && !isGood }
+    var isEditing: Bool { paycheckToEdit != nil }
+    var titheAmount: Double { total * 0.10 }
 
     var body: some View {
         NavigationStack {
             if saved {
                 VStack(spacing: 16) {
-                    Text("🎉").font(.system(size: 64))
-                    Text("Paycheck saved!").font(.title.bold())
+                    Text(isEditing ? "Saved" : "🎉").font(.system(size: isEditing ? 34 : 64, weight: .bold))
+                    Text(isEditing ? "Paycheck updated!" : "Paycheck saved!").font(.title.bold())
                     Text("Nice work staying on top of it.").foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -634,11 +965,7 @@ struct AddPaycheckView: View {
                         HStack {
                             Text("Total")
                             Spacer()
-                            Text("$").foregroundStyle(.secondary)
-                            TextField("0.00", text: $totalStr)
-                                .keyboardType(.decimalPad)
-                                .multilineTextAlignment(.trailing)
-                                .frame(width: 100)
+                            MoneyEntryField(text: $totalStr, placeholder: "0.00", width: 110)
                         }
                         DatePicker("Date", selection: $date, displayedComponents: .date)
                         HStack {
@@ -651,15 +978,63 @@ struct AddPaycheckView: View {
                     }
 
                     if total > 0 {
+                        if !store.activeBills.isEmpty {
+                            Section("Bills") {
+                                HStack(spacing: 10) {
+                                    Button("Half Bills") { fillBills(multiplier: 0.5) }
+                                        .buttonStyle(.bordered)
+                                    Button("Full Bills") { fillBills(multiplier: 1.0) }
+                                        .buttonStyle(.bordered)
+                                }
+                                .padding(.vertical, 2)
+                                ForEach(store.activeBills) { bill in
+                                    HStack(spacing: 12) {
+                                        Toggle("", isOn: Binding(
+                                            get: { includedBills.contains(bill.id) },
+                                            set: { isIncluded in
+                                                if isIncluded {
+                                                    includedBills.insert(bill.id)
+                                                    if billAmounts[bill.id] == nil {
+                                                        billAmounts[bill.id] = String(format: "%.2f", bill.amount)
+                                                    }
+                                                } else {
+                                                    includedBills.remove(bill.id)
+                                                }
+                                            }
+                                        ))
+                                        .labelsHidden()
+                                        Text(bill.name)
+                                        Spacer()
+                                        MoneyEntryField(text: Binding(
+                                            get: { billAmounts[bill.id] ?? String(format: "%.2f", bill.amount) },
+                                            set: { billAmounts[bill.id] = $0 }
+                                        ), placeholder: "0.00", width: 92)
+                                        .disabled(!includedBills.contains(bill.id))
+                                        .foregroundStyle(includedBills.contains(bill.id) ? Color.primary : Color.secondary)
+                                    }
+                                }
+                            }
+                        }
+
                         Section {
-                            HStack {
+                            VStack(spacing: 8) {
+                                HStack {
+                                    Text("After bills")
+                                    Spacer()
+                                    Text(fmt(envelopeMoney))
+                                }
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+
                                 let color: Color = isGood ? .green : isClose ? Color(hex:"#FF9500") : .red
-                                Text(isGood ? "Fully allocated" : "Remaining: \(fmt(remaining))")
-                                    .font(.subheadline.weight(.semibold))
-                                    .foregroundStyle(color)
-                                Spacer()
-                                Text("\(fmt(allocated)) / \(fmt(total))")
-                                    .font(.subheadline).foregroundStyle(.secondary)
+                                HStack {
+                                    Text(isGood ? "Fully allocated" : "Remaining: \(fmt(remaining))")
+                                        .font(.subheadline.weight(.semibold))
+                                        .foregroundStyle(color)
+                                    Spacer()
+                                    Text("\(fmt(allocated)) / \(fmt(envelopeMoney))")
+                                        .font(.subheadline).foregroundStyle(.secondary)
+                                }
                             }
                         }
                     }
@@ -669,23 +1044,34 @@ struct AddPaycheckView: View {
                             HStack(spacing: 12) {
                                 RoundedRectangle(cornerRadius: 7)
                                     .fill(bucket.color).frame(width: 26, height: 26)
-                                Text(bucket.name)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(bucket.name)
+                                    if let hint = allocationHint(for: bucket) {
+                                        Text(hint)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
                                 Spacer()
-                                Text("$").foregroundStyle(.secondary)
-                                TextField("0", text: Binding(
+                                MoneyEntryField(text: Binding(
                                     get: { allocs[bucket.id] ?? "" },
                                     set: { allocs[bucket.id] = $0 }
-                                ))
-                                .keyboardType(.decimalPad)
-                                .multilineTextAlignment(.trailing)
-                                .frame(width: 80)
+                                ), placeholder: "0", width: 86)
+                                if isTithing(bucket) {
+                                    Button("10%") {
+                                        allocs[bucket.id] = String(format: "%.2f", titheAmount)
+                                    }
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .buttonStyle(.bordered)
+                                    .disabled(total <= 0)
+                                }
                             }
                         }
                     }
 
                     Section {
                         Button { handleSave() } label: {
-                            Text("Save Paycheck")
+                            Text(isEditing ? "Update Paycheck" : "Save Paycheck")
                                 .frame(maxWidth: .infinity).font(.headline)
                         }
                         .buttonStyle(.borderedProminent)
@@ -696,28 +1082,133 @@ struct AddPaycheckView: View {
                     .listRowInsets(.init(top: 8, leading: 0, bottom: 8, trailing: 0))
                 }
                 .listStyle(.insetGrouped)
-                .navigationTitle("Add Paycheck")
+                .navigationTitle(isEditing ? "Edit Paycheck" : "Add Paycheck")
+                .onAppear { prepareForm() }
+                .toolbar {
+                    ToolbarItemGroup(placement: .keyboard) {
+                        Spacer()
+                        Button {
+                            hideKeyboard()
+                        } label: {
+                            Text("Done")
+                                .fontWeight(.semibold)
+                        }
+                        .accessibilityLabel("Close keyboard")
+                    }
+                }
             }
         }
     }
 
     private func handleSave() {
         guard total > 0 else { return }
-        let df = DateFormatter(); df.dateFormat = "yyyy-MM-dd"
-        store.addPaycheck(Paycheck(
-            id: UUID().uuidString,
-            date: df.string(from: date),
+        let bills = store.activeBills.compactMap { bill -> BillPayment? in
+            guard includedBills.contains(bill.id),
+                  let amount = Double(billAmounts[bill.id] ?? ""),
+                  amount > 0 else { return nil }
+            let existing = paycheckToEdit?.bills.first { $0.billId == bill.id }
+            return BillPayment(
+                id: existing?.id ?? UUID().uuidString,
+                billId: bill.id,
+                name: bill.name,
+                amount: amount,
+                isPaid: existing?.isPaid ?? false,
+                paidDate: existing?.paidDate
+            )
+        }
+        let paycheck = Paycheck(
+            id: paycheckToEdit?.id ?? UUID().uuidString,
+            date: isoDateFormatter.string(from: date),
             amount: total,
             note: note,
+            bills: bills,
             allocations: store.activeBuckets.compactMap { b in
                 guard let v = Double(allocs[b.id] ?? ""), v > 0 else { return nil }
                 return Allocation(bucketId: b.id, amount: v)
             }
-        ))
+        )
+        if isEditing {
+            store.updatePaycheck(paycheck)
+        } else {
+            store.addPaycheck(paycheck)
+        }
         saved = true
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
-            saved = false; totalStr = ""; allocs = [:]; note = ""; date = Date()
+            if isEditing {
+                onSaved?()
+            } else {
+                saved = false; totalStr = ""; allocs = [:]; note = ""; date = Date()
+                billAmounts = [:]; includedBills = []; prepareBills()
+            }
         }
+    }
+
+    private func prepareForm() {
+        if let paycheckToEdit, totalStr.isEmpty, allocs.isEmpty, billAmounts.isEmpty {
+            totalStr = String(format: "%.2f", paycheckToEdit.amount)
+            date = isoDateFormatter.date(from: paycheckToEdit.date) ?? Date()
+            note = paycheckToEdit.note
+            allocs = Dictionary(uniqueKeysWithValues: paycheckToEdit.allocations.map { ($0.bucketId, String(format: "%.2f", $0.amount)) })
+            billAmounts = Dictionary(uniqueKeysWithValues: paycheckToEdit.bills.map { ($0.billId, String(format: "%.2f", $0.amount)) })
+            includedBills = Set(paycheckToEdit.bills.map(\.billId))
+        } else {
+            prepareBills()
+        }
+    }
+
+    private func prepareBills() {
+        guard billAmounts.isEmpty && includedBills.isEmpty else { return }
+        for bill in store.activeBills {
+            includedBills.insert(bill.id)
+            billAmounts[bill.id] = String(format: "%.2f", bill.amount)
+        }
+    }
+
+    private func fillBills(multiplier: Double) {
+        for bill in store.activeBills {
+            includedBills.insert(bill.id)
+            billAmounts[bill.id] = String(format: "%.2f", bill.amount * multiplier)
+        }
+    }
+
+    private func allocationHint(for bucket: Bucket) -> String? {
+        if let suggested = store.suggestedGoalContribution(for: bucket), suggested > 0 {
+            return "Need \(fmt(suggested))/check by \(fmtDate(bucket.goalDate ?? ""))"
+        }
+        if isTithing(bucket), total > 0 {
+            return "10%: \(fmt(titheAmount))"
+        }
+        let last = store.lastAlloc(for: bucket.id)
+        if last > 0 { return "Last: \(fmt(last))" }
+        let average = store.averageAlloc(for: bucket.id)
+        if average > 0 { return "Avg: \(fmt(average))" }
+        return nil
+    }
+
+    private func isTithing(_ bucket: Bucket) -> Bool {
+        bucket.id.lowercased() == "tithing" || bucket.name.lowercased().contains("tith")
+    }
+
+    private func hideKeyboard() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+    }
+}
+
+struct MoneyEntryField: View {
+    @Binding var text: String
+    var placeholder: String
+    var width: CGFloat
+
+    var body: some View {
+        HStack(spacing: 2) {
+            Text("$")
+                .foregroundStyle(.secondary)
+            TextField(placeholder, text: $text)
+                .keyboardType(.decimalPad)
+                .multilineTextAlignment(.trailing)
+                .monospacedDigit()
+        }
+        .frame(width: width)
     }
 }
 
@@ -726,26 +1217,44 @@ struct AddPaycheckView: View {
 struct HistoryView: View {
     @Environment(AppStore.self) var store
     @State private var expandedId: String?
+    @State private var editingPaycheck: Paycheck?
+    @State private var savingsRange: SavingsRange = .year
 
     var sorted: [Paycheck]  { store.state.paychecks.sorted { $0.date > $1.date } }
-    var chart12: [Paycheck] { Array(store.state.paychecks.sorted { $0.date < $1.date }.suffix(12)) }
+    var savingsChart: [SavingsPoint] {
+        let all = savingsBalancePoints()
+        guard let cutoff = savingsRange.cutoffDate else { return all }
+        let previous = all.last { $0.date < cutoff }
+        let filtered = all.filter { $0.date >= cutoff }
+        if let previous, !filtered.contains(where: { $0.id == previous.id }) {
+            return [previous] + filtered
+        }
+        return filtered
+    }
 
     var body: some View {
         NavigationStack {
             List {
-                // ── Trend line ──
-                if chart12.count >= 2 {
-                    Section("Paycheck Trend") {
-                        Chart(chart12) { p in
+                // ── Savings tracker ──
+                if savingsChart.count >= 2 {
+                    Section {
+                        Picker("Range", selection: $savingsRange) {
+                            ForEach(SavingsRange.allCases) { range in
+                                Text(range.rawValue).tag(range)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+
+                        Chart(savingsChart) { point in
                             LineMark(
-                                x: .value("Date", p.date),
-                                y: .value("Amount", p.amount)
+                                x: .value("Date", point.date),
+                                y: .value("Balance", point.balance)
                             )
                             .foregroundStyle(Color(hex: "#7C3AED"))
                             .interpolationMethod(.catmullRom)
                             AreaMark(
-                                x: .value("Date", p.date),
-                                y: .value("Amount", p.amount)
+                                x: .value("Date", point.date),
+                                y: .value("Balance", point.balance)
                             )
                             .foregroundStyle(
                                 LinearGradient(
@@ -755,15 +1264,27 @@ struct HistoryView: View {
                             )
                             .interpolationMethod(.catmullRom)
                             PointMark(
-                                x: .value("Date", p.date),
-                                y: .value("Amount", p.amount)
+                                x: .value("Date", point.date),
+                                y: .value("Balance", point.balance)
                             )
                             .foregroundStyle(Color(hex: "#7C3AED"))
-                            .symbolSize(25)
+                            .symbolSize(18)
                         }
-                        .chartXAxis(.hidden)
+                        .chartXAxis {
+                            AxisMarks(values: .automatic(desiredCount: 4))
+                        }
                         .chartYAxis(.hidden)
-                        .frame(height: 80)
+                        .frame(height: 110)
+                        .contentTransition(.opacity)
+
+                        HStack {
+                            Text("Savings Balance")
+                                .font(.subheadline.weight(.semibold))
+                            Spacer()
+                            Text(fmt(savingsChart.last?.balance ?? 0))
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(Color(hex: "#7C3AED"))
+                        }
                     }
                 }
 
@@ -776,6 +1297,9 @@ struct HistoryView: View {
                                 set: { expandedId = $0 ? p.id : nil }
                             )
                         ) {
+                            if !p.bills.isEmpty {
+                                SectionBillRows(paycheckId: p.id, bills: p.bills)
+                            }
                             ForEach(p.allocations, id: \.bucketId) { a in
                                 let b = store.state.buckets.first { $0.id == a.bucketId }
                                 HStack(spacing: 8) {
@@ -800,11 +1324,117 @@ struct HistoryView: View {
                                 Text(fmt(p.amount)).foregroundStyle(.secondary)
                             }
                         }
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            Button("Edit") { editingPaycheck = p }
+                                .tint(Color(hex: "#7C3AED"))
+                        }
+                        .contextMenu {
+                            Button("Edit Paycheck") { editingPaycheck = p }
+                        }
                     }
                 }
             }
             .listStyle(.insetGrouped)
             .navigationTitle("History")
+            .sheet(item: $editingPaycheck) { paycheck in
+                AddPaycheckView(paycheckToEdit: paycheck) {
+                    editingPaycheck = nil
+                }
+            }
+        }
+    }
+
+    private func savingsBalancePoints() -> [SavingsPoint] {
+        var events: [(date: Date, amount: Double)] = []
+        let savingsIds = store.savingsBucketIds
+
+        for paycheck in store.state.paychecks {
+            guard let date = isoDateFormatter.date(from: paycheck.date) else { continue }
+            let amount = paycheck.allocations
+                .filter { savingsIds.contains($0.bucketId) }
+                .reduce(0) { $0 + $1.amount }
+            if amount != 0 { events.append((date, amount)) }
+            for bill in paycheck.bills {
+                events.append((date, bill.amount))
+                if bill.isPaid, let paidDate = bill.paidDate.flatMap({ isoDateFormatter.date(from: $0) }) {
+                    events.append((paidDate, -bill.amount))
+                }
+            }
+        }
+
+        for transaction in store.state.transactions {
+            guard let date = isoDateFormatter.date(from: transaction.date),
+                  savingsIds.contains(transaction.bucketId) else { continue }
+            events.append((date, transaction.amount))
+        }
+
+        var running = 0.0
+        return events
+            .sorted { $0.date < $1.date }
+            .enumerated()
+            .map { offset, event in
+                running += event.amount
+                return SavingsPoint(id: "\(offset)-\(event.date.timeIntervalSince1970)", date: event.date, balance: running)
+            }
+    }
+}
+
+enum SavingsRange: String, CaseIterable, Identifiable {
+    case month = "Month"
+    case year = "Year"
+    case fiveYears = "5Y"
+    case all = "All"
+
+    var id: String { rawValue }
+
+    var cutoffDate: Date? {
+        let calendar = Calendar.current
+        switch self {
+        case .month:
+            return calendar.date(byAdding: .month, value: -1, to: Date())
+        case .year:
+            return calendar.date(byAdding: .year, value: -1, to: Date())
+        case .fiveYears:
+            return calendar.date(byAdding: .year, value: -5, to: Date())
+        case .all:
+            return nil
+        }
+    }
+}
+
+struct SavingsPoint: Identifiable {
+    var id: String
+    var date: Date
+    var balance: Double
+}
+
+struct SectionBillRows: View {
+    @Environment(AppStore.self) var store
+    let paycheckId: String
+    let bills: [BillPayment]
+
+    var body: some View {
+        ForEach(bills) { bill in
+            HStack(spacing: 8) {
+                Button {
+                    store.setBillPaymentPaid(paycheckId: paycheckId, paymentId: bill.id, isPaid: !bill.isPaid)
+                } label: {
+                    Image(systemName: bill.isPaid ? "checkmark.circle.fill" : "circle")
+                        .font(.system(size: 16))
+                        .foregroundStyle(bill.isPaid ? .green : Color(hex: "#7C3AED"))
+                        .frame(width: 18, height: 18)
+                }
+                .buttonStyle(.plain)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(bill.name)
+                        .font(.subheadline)
+                    Text(bill.isPaid ? "Paid" : "Needs transfer")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Text(fmt(bill.amount)).font(.subheadline)
+            }
         }
     }
 }
@@ -831,6 +1461,9 @@ struct NotesView: View {
     func buildText() -> String {
         store.state.paychecks.sorted { $0.date < $1.date }.map { p in
             var lines = [shortDate(p.date), "$\(String(format: "%.2f", p.amount))"]
+            for bill in p.bills {
+                lines.append("\(bill.name)- \(String(format: "%.2f", bill.amount))")
+            }
             for a in p.allocations {
                 lines.append("\(bucketName(a.bucketId))- \(String(format: "%.2f", a.amount))")
             }
@@ -853,6 +1486,18 @@ struct NotesView: View {
                             Text(p.note.uppercased())
                                 .font(.system(size: 11, weight: .semibold))
                                 .foregroundStyle(Color(hex: "#7C3AED"))
+                        }
+                        ForEach(p.bills) { bill in
+                            HStack(spacing: 8) {
+                                Image(systemName: "doc.text.fill")
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(Color(hex: "#7C3AED"))
+                                    .frame(width: 8, height: 8)
+                                Text("\(bill.name)-")
+                                    .font(.callout).foregroundStyle(.secondary)
+                                Spacer()
+                                Text(String(format: "%.2f", bill.amount)).font(.callout)
+                            }
                         }
                         ForEach(p.allocations, id: \.bucketId) { a in
                             let b = store.state.buckets.first { $0.id == a.bucketId }
@@ -889,9 +1534,18 @@ struct NotesView: View {
 struct SettingsView: View {
     @Environment(AppStore.self) var store
     @State private var editingBucket: Bucket?
+    @State private var editingBill: Bill?
     @State private var showAddBucket    = false
+    @State private var showAddBill      = false
     @State private var showArchived     = false
     @State private var showResetConfirm = false
+    @State private var resetText        = ""
+    @State private var showExporter     = false
+    @State private var showImporter     = false
+    @State private var showImportConfirm = false
+    @State private var backupDocument: MoonayBackupDocument?
+    @State private var pendingImport: AppState?
+    @State private var dataMessage: String?
 
     var active:   [Bucket] { store.sortedNonArchived.filter  { $0.isActive  } }
     var inactive: [Bucket] { store.sortedNonArchived.filter  { !$0.isActive } }
@@ -923,6 +1577,14 @@ struct SettingsView: View {
                         .foregroundStyle(Color(hex: "#7C3AED"))
                 }
 
+                Section("Bills") {
+                    ForEach(store.sortedBills) { bill in
+                        BillSettingRow(bill: bill) { editingBill = bill }
+                    }
+                    Button("+ New Bill") { showAddBill = true }
+                        .foregroundStyle(Color(hex: "#7C3AED"))
+                }
+
                 if !archived.isEmpty {
                     Section {
                         DisclosureGroup("Archived (\(archived.count))", isExpanded: $showArchived) {
@@ -934,6 +1596,8 @@ struct SettingsView: View {
                 }
 
                 Section("Data") {
+                    Button("Export Backup") { startExport() }
+                    Button("Import Backup") { showImporter = true }
                     Button("Reset All Data", role: .destructive) { showResetConfirm = true }
                 }
             }
@@ -941,11 +1605,255 @@ struct SettingsView: View {
             .navigationTitle("Settings")
             .toolbar { EditButton() }
             .sheet(item: $editingBucket) { BucketEditView(bucket: $0) }
+            .sheet(item: $editingBill) { BillEditView(bill: $0) }
             .sheet(isPresented: $showAddBucket) { BucketAddView() }
-            .confirmationDialog("Reset All Data?", isPresented: $showResetConfirm, titleVisibility: .visible) {
-                Button("Reset", role: .destructive) { store.resetData() }
-                Button("Cancel", role: .cancel) {}
-            } message: { Text("This cannot be undone.") }
+            .sheet(isPresented: $showAddBill) { BillAddView() }
+            .sheet(isPresented: $showResetConfirm) {
+                ResetDataView(resetText: $resetText) {
+                    store.clearFinancialData()
+                    resetText = ""
+                    showResetConfirm = false
+                    dataMessage = "Financial history cleared."
+                }
+            }
+            .confirmationDialog("Restore Backup?", isPresented: $showImportConfirm, titleVisibility: .visible) {
+                Button("Restore Backup", role: .destructive) {
+                    if let pendingImport {
+                        store.restoreBackup(pendingImport)
+                        dataMessage = "Backup restored."
+                    }
+                    pendingImport = nil
+                }
+                Button("Cancel", role: .cancel) { pendingImport = nil }
+            } message: {
+                Text("This replaces the data currently on this device. Export a backup first if you want to keep it.")
+            }
+            .fileExporter(
+                isPresented: $showExporter,
+                document: backupDocument,
+                contentType: .json,
+                defaultFilename: "Moonay Backup \(todayISO())"
+            ) { result in
+                switch result {
+                case .success:
+                    dataMessage = "Backup exported."
+                case .failure(let error):
+                    dataMessage = error.localizedDescription
+                }
+                backupDocument = nil
+            }
+            .fileImporter(isPresented: $showImporter, allowedContentTypes: [.json]) { result in
+                handleImport(result)
+            }
+            .alert("Moonay Data", isPresented: Binding(
+                get: { dataMessage != nil },
+                set: { if !$0 { dataMessage = nil } }
+            )) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(dataMessage ?? "")
+            }
+        }
+    }
+
+    private func startExport() {
+        do {
+            backupDocument = MoonayBackupDocument(data: try store.backupData())
+            showExporter = true
+        } catch {
+            dataMessage = error.localizedDescription
+        }
+    }
+
+    private func handleImport(_ result: Result<URL, Error>) {
+        do {
+            let url = try result.get()
+            let didStartAccessing = url.startAccessingSecurityScopedResource()
+            defer {
+                if didStartAccessing {
+                    url.stopAccessingSecurityScopedResource()
+                }
+            }
+            let data = try Data(contentsOf: url)
+            pendingImport = try store.decodedBackup(from: data)
+            showImportConfirm = true
+        } catch {
+            dataMessage = error.localizedDescription
+        }
+    }
+}
+
+struct ResetDataView: View {
+    @Environment(\.dismiss) var dismiss
+    @Binding var resetText: String
+    let onReset: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    Text("This clears paychecks, transactions, and unpaid bill history. Your bucket and bill setup stays, but balances go to $0.")
+                        .foregroundStyle(.secondary)
+                    TextField("Type Lauren", text: $resetText)
+                        .textInputAutocapitalization(.never)
+                } header: {
+                    Text("Type Lauren to reset all data")
+                }
+
+                Section {
+                    Button("Reset All Data", role: .destructive) {
+                        onReset()
+                    }
+                    .disabled(resetText != "Lauren")
+                }
+            }
+            .navigationTitle("Reset Data")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        resetText = ""
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+}
+
+struct BillSettingRow: View {
+    @Environment(AppStore.self) var store
+    let bill: Bill
+    let onEdit: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "doc.text.fill")
+                .foregroundStyle(Color(hex: "#7C3AED"))
+                .frame(width: 26, height: 26)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(bill.name)
+                Text(fmt(bill.amount)).font(.caption).foregroundStyle(.secondary)
+            }
+            Spacer()
+            Button(bill.isActive ? "Active" : "Off") {
+                store.toggleBillActive(id: bill.id)
+            }
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundStyle(bill.isActive ? Color(hex:"#7C3AED") : .secondary)
+            .padding(.horizontal, 10).padding(.vertical, 4)
+            .background(bill.isActive ? Color(hex:"#EDE9FE") : Color(.systemGray6))
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .buttonStyle(.plain)
+
+            Button("Edit", action: onEdit)
+                .font(.system(size: 13)).foregroundStyle(.secondary)
+                .padding(.horizontal, 10).padding(.vertical, 4)
+                .background(Color(.systemGray6))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .buttonStyle(.plain)
+        }
+    }
+}
+
+struct BillEditView: View {
+    @Environment(AppStore.self) var store
+    @Environment(\.dismiss) var dismiss
+    let bill: Bill
+
+    @State private var name: String
+    @State private var amountStr: String
+
+    init(bill: Bill) {
+        self.bill = bill
+        _name = State(initialValue: bill.name)
+        _amountStr = State(initialValue: String(format: "%.2f", bill.amount))
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    HStack {
+                        Text("Name"); Spacer()
+                        TextField("Bill name", text: $name).multilineTextAlignment(.trailing)
+                    }
+                    HStack {
+                        Text("Amount"); Spacer()
+                        Text("$").foregroundStyle(.secondary)
+                        TextField("0.00", text: $amountStr)
+                            .keyboardType(.decimalPad)
+                            .multilineTextAlignment(.trailing)
+                            .frame(width: 90)
+                    }
+                }
+            }
+            .navigationTitle("Edit Bill")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        let trimmed = name.trimmingCharacters(in: .whitespaces)
+                        guard !trimmed.isEmpty, let amount = Double(amountStr), amount >= 0 else { return }
+                        store.updateBill(id: bill.id, name: trimmed, amount: amount)
+                        dismiss()
+                    }
+                    .fontWeight(.semibold)
+                    .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty || Double(amountStr) == nil)
+                }
+            }
+        }
+    }
+}
+
+struct BillAddView: View {
+    @Environment(AppStore.self) var store
+    @Environment(\.dismiss) var dismiss
+
+    @State private var name = ""
+    @State private var amountStr = ""
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    HStack {
+                        Text("Name"); Spacer()
+                        TextField("Bill name", text: $name).multilineTextAlignment(.trailing)
+                    }
+                    HStack {
+                        Text("Amount"); Spacer()
+                        Text("$").foregroundStyle(.secondary)
+                        TextField("0.00", text: $amountStr)
+                            .keyboardType(.decimalPad)
+                            .multilineTextAlignment(.trailing)
+                            .frame(width: 90)
+                    }
+                }
+            }
+            .navigationTitle("New Bill")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Add") {
+                        let trimmed = name.trimmingCharacters(in: .whitespaces)
+                        guard !trimmed.isEmpty, let amount = Double(amountStr), amount >= 0 else { return }
+                        let maxOrder = store.state.bills.map { $0.order }.max() ?? -1
+                        store.addBill(Bill(
+                            id: UUID().uuidString,
+                            name: trimmed,
+                            amount: amount,
+                            isActive: true,
+                            order: maxOrder + 1
+                        ))
+                        dismiss()
+                    }
+                    .fontWeight(.semibold)
+                    .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty || Double(amountStr) == nil)
+                }
+            }
         }
     }
 }
@@ -959,6 +1867,7 @@ struct BucketSettingRow: View {
         var p: [String] = []
         if bucket.isSpending  { p.append("spending") }
         if let g = bucket.goal { p.append("goal: \(fmt(g))") }
+        if let d = bucket.goalDate { p.append("by \(fmtDate(d))") }
         if bucket.archived    { p.append("archived") }
         return p.isEmpty ? "savings bucket" : p.joined(separator: " · ")
     }
@@ -1002,6 +1911,8 @@ struct BucketEditView: View {
     @State private var name:       String
     @State private var selectedColor: Color
     @State private var goalStr:    String
+    @State private var hasGoalDate: Bool
+    @State private var goalDate: Date
     @State private var isSpending: Bool
     @State private var showArchive = false
 
@@ -1010,6 +1921,8 @@ struct BucketEditView: View {
         _name         = State(initialValue: bucket.name)
         _selectedColor = State(initialValue: Color(hex: bucket.colorHex))
         _goalStr      = State(initialValue: bucket.goal.map { String($0) } ?? "")
+        _hasGoalDate  = State(initialValue: bucket.goalDate != nil)
+        _goalDate     = State(initialValue: bucket.goalDate.flatMap { isoDateFormatter.date(from: $0) } ?? Date())
         _isSpending   = State(initialValue: bucket.isSpending)
     }
 
@@ -1029,6 +1942,10 @@ struct BucketEditView: View {
                             .keyboardType(.decimalPad)
                             .multilineTextAlignment(.trailing).frame(width: 80)
                     }
+                    Toggle("Save By Date", isOn: $hasGoalDate)
+                    if hasGoalDate {
+                        DatePicker("Save By", selection: $goalDate, displayedComponents: .date)
+                    }
                     Toggle("Spending Bucket", isOn: $isSpending)
                 }
                 Section {
@@ -1043,7 +1960,9 @@ struct BucketEditView: View {
                     Button("Save") {
                         store.updateBucket(id: bucket.id, name: name,
                                            colorHex: selectedColor.toHex() ?? bucket.colorHex,
-                                           goal: Double(goalStr), isSpending: isSpending)
+                                           goal: Double(goalStr),
+                                           goalDate: hasGoalDate ? isoDateFormatter.string(from: goalDate) : nil,
+                                           isSpending: isSpending)
                         dismiss()
                     }.fontWeight(.semibold)
                 }
@@ -1063,6 +1982,8 @@ struct BucketAddView: View {
     @State private var name          = ""
     @State private var selectedColor = Color(hex: "#7C3AED")
     @State private var goalStr       = ""
+    @State private var hasGoalDate   = false
+    @State private var goalDate      = Date()
     @State private var isSpending    = false
 
     var body: some View {
@@ -1081,6 +2002,10 @@ struct BucketAddView: View {
                             .keyboardType(.decimalPad)
                             .multilineTextAlignment(.trailing).frame(width: 80)
                     }
+                    Toggle("Save By Date", isOn: $hasGoalDate)
+                    if hasGoalDate {
+                        DatePicker("Save By", selection: $goalDate, displayedComponents: .date)
+                    }
                     Toggle("Spending Bucket", isOn: $isSpending)
                 }
             }
@@ -1097,7 +2022,9 @@ struct BucketAddView: View {
                             id: UUID().uuidString, name: trimmed,
                             colorHex: selectedColor.toHex() ?? "#7C3AED",
                             isActive: true, archived: false,
-                            goal: Double(goalStr), isSpending: isSpending,
+                            goal: Double(goalStr),
+                            goalDate: hasGoalDate ? isoDateFormatter.string(from: goalDate) : nil,
+                            isSpending: isSpending,
                             order: maxOrder + 1
                         ))
                         dismiss()
@@ -1106,6 +2033,17 @@ struct BucketAddView: View {
                     .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
             }
+            
         }
+        
     }
+   
+
+    
+
+}
+
+#Preview {
+    ContentView()
+        .environment(AppStore())
 }
