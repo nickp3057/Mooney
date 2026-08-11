@@ -15,10 +15,15 @@ struct Bucket: Identifiable, Codable, Equatable, Hashable {
     // switched to a spending bucket, since bucket balances + this one must
     // always sum to total savings.
     var isGeneral: Bool
+    // Intended per-check allocation, shown as a quick-fill suggestion when
+    // adding income. At most one of these should be set — percent (0-100)
+    // or a fixed dollar amount.
+    var allocationPercent: Double?
+    var allocationAmount: Double?
 
     var color: Color { Color(hex: colorHex) }
 
-    init(id: String, name: String, colorHex: String, isActive: Bool, archived: Bool, goal: Double?, goalDate: String? = nil, isSpending: Bool, order: Int, isGeneral: Bool = false) {
+    init(id: String, name: String, colorHex: String, isActive: Bool, archived: Bool, goal: Double?, goalDate: String? = nil, isSpending: Bool, order: Int, isGeneral: Bool = false, allocationPercent: Double? = nil, allocationAmount: Double? = nil) {
         self.id = id
         self.name = name
         self.colorHex = colorHex
@@ -29,10 +34,12 @@ struct Bucket: Identifiable, Codable, Equatable, Hashable {
         self.isSpending = isSpending
         self.order = order
         self.isGeneral = isGeneral
+        self.allocationPercent = allocationPercent
+        self.allocationAmount = allocationAmount
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, name, colorHex, isActive, archived, goal, goalDate, isSpending, order, isGeneral
+        case id, name, colorHex, isActive, archived, goal, goalDate, isSpending, order, isGeneral, allocationPercent, allocationAmount
     }
 
     init(from decoder: Decoder) throws {
@@ -47,5 +54,7 @@ struct Bucket: Identifiable, Codable, Equatable, Hashable {
         isSpending = try container.decode(Bool.self, forKey: .isSpending)
         order = try container.decode(Int.self, forKey: .order)
         isGeneral = try container.decodeIfPresent(Bool.self, forKey: .isGeneral) ?? false
+        allocationPercent = try container.decodeIfPresent(Double.self, forKey: .allocationPercent)
+        allocationAmount = try container.decodeIfPresent(Double.self, forKey: .allocationAmount)
     }
 }

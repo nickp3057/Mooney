@@ -16,7 +16,7 @@ let seedIncomeSources: [IncomeSource] = [
 let seedBuckets: [Bucket] = [
     Bucket(id:"savings",     name:"Savings",     colorHex:"#AF52DE", isActive:true,  archived:false, goal:nil,   isSpending:false, order:0, isGeneral:true),
     Bucket(id:"checking",    name:"Checking",    colorHex:"#007AFF", isActive:true,  archived:false, goal:nil,   isSpending:true,  order:1),
-    Bucket(id:"tithing",     name:"Tithing",     colorHex:"#34C759", isActive:true,  archived:false, goal:nil,   isSpending:true,  order:2),
+    Bucket(id:"tithing",     name:"Tithing",     colorHex:"#34C759", isActive:true,  archived:false, goal:nil,   isSpending:true,  order:2, allocationPercent:10),
     Bucket(id:"bts",         name:"BTS",         colorHex:"#FF2D55", isActive:true,  archived:false, goal:nil,   isSpending:false, order:3),
     Bucket(id:"vacation",    name:"Vacation",    colorHex:"#FF9500", isActive:true,  archived:false, goal:nil,   isSpending:false, order:4),
     Bucket(id:"christmas",   name:"Christmas",   colorHex:"#FFCC00", isActive:true,  archived:false, goal:nil,   isSpending:false, order:5),

@@ -33,57 +33,56 @@ struct NotesView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            List {
-                ForEach(sorted) { p in
-                    Section {
-                        HStack {
-                            Text(shortDate(p.date)).font(.headline)
-                            Spacer()
-                            Text("$\(String(format: "%.2f", p.amount))").font(.headline)
-                        }
-                        if !p.note.isEmpty {
-                            Text(p.note.uppercased())
-                                .font(.system(size: 11, weight: .semibold))
+        List {
+            ForEach(sorted) { p in
+                Section {
+                    HStack {
+                        Text(shortDate(p.date)).font(.headline)
+                        Spacer()
+                        Text("$\(String(format: "%.2f", p.amount))").font(.headline)
+                    }
+                    if !p.note.isEmpty {
+                        Text(p.note.uppercased())
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(store.accentColor)
+                    }
+                    ForEach(p.bills) { bill in
+                        HStack(spacing: 8) {
+                            Image(systemName: "doc.text.fill")
+                                .font(.system(size: 10))
                                 .foregroundStyle(store.accentColor)
+                                .frame(width: 8, height: 8)
+                            Text("\(bill.name)-")
+                                .font(.callout).foregroundStyle(.secondary)
+                            Spacer()
+                            Text(String(format: "%.2f", bill.amount)).font(.callout)
                         }
-                        ForEach(p.bills) { bill in
-                            HStack(spacing: 8) {
-                                Image(systemName: "doc.text.fill")
-                                    .font(.system(size: 10))
-                                    .foregroundStyle(store.accentColor)
-                                    .frame(width: 8, height: 8)
-                                Text("\(bill.name)-")
-                                    .font(.callout).foregroundStyle(.secondary)
-                                Spacer()
-                                Text(String(format: "%.2f", bill.amount)).font(.callout)
-                            }
-                        }
-                        ForEach(p.allocations, id: \.bucketId) { a in
-                            let b = store.state.buckets.first { $0.id == a.bucketId }
-                            HStack(spacing: 8) {
-                                RoundedRectangle(cornerRadius: 2)
-                                    .fill(b?.color ?? .gray).frame(width: 8, height: 8)
-                                Text("\(bucketName(a.bucketId))-")
-                                    .font(.callout).foregroundStyle(.secondary)
-                                Spacer()
-                                Text(String(format: "%.2f", a.amount)).font(.callout)
-                            }
+                    }
+                    ForEach(p.allocations, id: \.bucketId) { a in
+                        let b = store.state.buckets.first { $0.id == a.bucketId }
+                        HStack(spacing: 8) {
+                            RoundedRectangle(cornerRadius: 2)
+                                .fill(b?.color ?? .gray).frame(width: 8, height: 8)
+                            Text("\(bucketName(a.bucketId))-")
+                                .font(.callout).foregroundStyle(.secondary)
+                            Spacer()
+                            Text(String(format: "%.2f", a.amount)).font(.callout)
                         }
                     }
                 }
             }
-            .listStyle(.insetGrouped)
-            .navigationTitle("Notes")
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(copied ? "Copied!" : "Copy All") {
-                        UIPasteboard.general.string = buildText()
-                        copied = true
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { copied = false }
-                    }
-                    .foregroundStyle(copied ? .green : store.accentColor)
+        }
+        .listStyle(.insetGrouped)
+        .navigationTitle("Notes")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .confirmationAction) {
+                Button(copied ? "Copied!" : "Copy All") {
+                    UIPasteboard.general.string = buildText()
+                    copied = true
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) { copied = false }
                 }
+                .foregroundStyle(copied ? .green : store.accentColor)
             }
         }
     }

@@ -11,8 +11,8 @@ struct ContentView: View {
                 .tabItem { Label("Income", systemImage: "plus.circle") }
             HistoryView()
                 .tabItem { Label("History", systemImage: "list.bullet") }
-            NotesView()
-                .tabItem { Label("Notes", systemImage: "doc.text") }
+            SubscriptionsView()
+                .tabItem { Label("Subscriptions", systemImage: "arrow.clockwise.circle") }
             SettingsView()
                 .tabItem { Label("Settings", systemImage: "gear") }
         }

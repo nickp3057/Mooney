@@ -31,7 +31,6 @@ struct AddIncomeView: View {
     var remaining: Double { envelopeMoney - allocated }
     var isGood:  Bool { abs(remaining) < 0.005 }
     var isEditing: Bool { incomeToEdit != nil }
-    var titheAmount: Double { total * 0.10 }
 
     var body: some View {
         NavigationStack {
@@ -155,9 +154,10 @@ struct AddIncomeView: View {
                                     set: { allocs[bucket.id] = $0 }
                                 ), placeholder: "0", width: 86)
                                 .focused($moneyFieldFocused)
-                                if isTithing(bucket) {
-                                    Button("10%") {
-                                        allocs[bucket.id] = String(format: "%.2f", titheAmount)
+                                if let suggested = suggestedAllocation(for: bucket),
+                                   let label = allocationButtonLabel(for: bucket) {
+                                    Button(label) {
+                                        allocs[bucket.id] = String(format: "%.2f", suggested)
                                     }
                                     .font(.system(size: 12, weight: .semibold))
                                     .buttonStyle(.bordered)
@@ -182,20 +182,6 @@ struct AddIncomeView: View {
                 .listStyle(.insetGrouped)
                 .navigationTitle(isEditing ? "Edit Income" : "Add Income")
                 .onAppear { prepareForm() }
-                .safeAreaInset(edge: .bottom) {
-                    if moneyFieldFocused {
-                        HStack {
-                            Spacer()
-                            Button("Done") { hideKeyboard() }
-                                .fontWeight(.semibold)
-                                .buttonStyle(.borderedProminent)
-                                .tint(store.accentColor)
-                        }
-                        .padding(.horizontal)
-                        .padding(.vertical, 8)
-                        .background(.bar)
-                    }
-                }
                 .toolbar {
                     ToolbarItemGroup(placement: .keyboard) {
                         Spacer()
@@ -300,8 +286,9 @@ struct AddIncomeView: View {
         if let suggested = store.suggestedGoalContribution(for: bucket), suggested > 0 {
             return "Need \(fmt(suggested))/check by \(fmtDate(bucket.goalDate ?? ""))"
         }
-        if isTithing(bucket), total > 0 {
-            return "10%: \(fmt(titheAmount))"
+        if let suggested = suggestedAllocation(for: bucket), suggested > 0, total > 0 {
+            let label = bucket.allocationPercent.map { "\(formatPercent($0))%" } ?? "Suggested"
+            return "\(label): \(fmt(suggested))"
         }
         let last = store.lastAlloc(for: bucket.id)
         if last > 0 { return "Last: \(fmt(last))" }
@@ -310,8 +297,20 @@ struct AddIncomeView: View {
         return nil
     }
 
-    private func isTithing(_ bucket: Bucket) -> Bool {
-        bucket.id.lowercased() == "tithing" || bucket.name.lowercased().contains("tith")
+    private func suggestedAllocation(for bucket: Bucket) -> Double? {
+        if let pct = bucket.allocationPercent { return total * (pct / 100) }
+        if let amt = bucket.allocationAmount { return amt }
+        return nil
+    }
+
+    private func allocationButtonLabel(for bucket: Bucket) -> String? {
+        if let pct = bucket.allocationPercent { return "\(formatPercent(pct))%" }
+        if bucket.allocationAmount != nil { return "Fill" }
+        return nil
+    }
+
+    private func formatPercent(_ p: Double) -> String {
+        p.truncatingRemainder(dividingBy: 1) == 0 ? String(format: "%.0f", p) : String(format: "%.1f", p)
     }
 
     private func hideKeyboard() {

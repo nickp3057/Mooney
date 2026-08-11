@@ -69,12 +69,14 @@ class AppStore {
     func addBill(_ b: Bill)              { state.bills.append(b); save() }
     func deleteBill(id: String)          { state.bills.removeAll { $0.id == id }; save() }
 
-    func updateBucket(id: String, name: String, colorHex: String, goal: Double?, goalDate: String?, isSpending: Bool) {
+    func updateBucket(id: String, name: String, colorHex: String, goal: Double?, goalDate: String?, isSpending: Bool, allocationPercent: Double?, allocationAmount: Double?) {
         guard let i = state.buckets.firstIndex(where: { $0.id == id }) else { return }
         state.buckets[i].name = name
         state.buckets[i].colorHex = colorHex
         state.buckets[i].goal = goal
         state.buckets[i].goalDate = goalDate
+        state.buckets[i].allocationPercent = allocationPercent
+        state.buckets[i].allocationAmount = allocationAmount
         // The general bucket must stay a savings bucket — it's what makes
         // bucket balances always sum to total savings.
         if !state.buckets[i].isGeneral {

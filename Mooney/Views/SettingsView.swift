@@ -74,7 +74,7 @@ struct SettingsView: View {
                 }
 
                 Section {
-                    NavigationLink("Subscriptions") { SubscriptionsView() }
+                    NavigationLink("Notes") { NotesView() }
                 }
 
                 Section("Income Sources") {
