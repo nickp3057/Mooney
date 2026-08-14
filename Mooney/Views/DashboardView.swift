@@ -155,17 +155,17 @@ struct DashboardView: View {
                 // ── Bucket quick access ──
                 if !store.activeBuckets.isEmpty {
                     Section {
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 6) {
-                                ForEach(store.activeBuckets) { bucket in
-                                    BucketChip(bucket: bucket) { selectedBucket = bucket }
-                                }
+                        LazyVGrid(
+                            columns: [GridItem(.adaptive(minimum: 100), spacing: 6, alignment: .leading)],
+                            alignment: .leading,
+                            spacing: 6
+                        ) {
+                            ForEach(store.activeBuckets) { bucket in
+                                BucketChip(bucket: bucket) { selectedBucket = bucket }
                             }
-                            .padding(.horizontal)
-                            .padding(.top, 2)
-                            .padding(.bottom, 10)
                         }
-                        .listRowInsets(EdgeInsets())
+                        .padding(.top, 2)
+                        .padding(.bottom, 4)
                     }
                     .listRowSeparator(.hidden)
                 }

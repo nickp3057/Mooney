@@ -7,10 +7,10 @@ struct ContentView: View {
         TabView {
             DashboardView()
                 .tabItem { Label("Ledger", systemImage: "house") }
-            AddIncomeView()
-                .tabItem { Label("Income", systemImage: "plus.circle") }
             CreditCardsView()
                 .tabItem { Label("Cards", systemImage: "creditcard") }
+            AddIncomeView()
+                .tabItem { Label("Add", systemImage: "plus.circle.fill") }
             CalendarView()
                 .tabItem { Label("Subscriptions", systemImage: "calendar") }
             SettingsView()
