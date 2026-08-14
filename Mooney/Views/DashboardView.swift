@@ -152,15 +152,18 @@ struct DashboardView: View {
                 }
                 .listRowSeparator(.hidden)
 
-                // ── Bucket quick access ──
-                if !store.activeBuckets.isEmpty {
+                // ── Bucket quick access ── Spending buckets (e.g. a
+                // "Checking" pass-through) are deliberately excluded — they're
+                // not meant to carry a tracked total, so they don't belong in
+                // a strip that implies one.
+                if !store.savingsBuckets.isEmpty {
                     Section {
                         LazyVGrid(
-                            columns: [GridItem(.adaptive(minimum: 100), spacing: 6, alignment: .leading)],
+                            columns: [GridItem(.flexible(), alignment: .leading), GridItem(.flexible(), alignment: .leading)],
                             alignment: .leading,
                             spacing: 6
                         ) {
-                            ForEach(store.activeBuckets) { bucket in
+                            ForEach(store.savingsBuckets) { bucket in
                                 BucketChip(bucket: bucket) { selectedBucket = bucket }
                             }
                         }

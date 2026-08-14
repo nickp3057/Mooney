@@ -19,9 +19,12 @@ struct BucketChip: View {
                 Text(bucket.name)
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
                 Text(fmt(display))
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
             .padding(.horizontal, 9)
             .padding(.vertical, 6)
