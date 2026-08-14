@@ -59,7 +59,9 @@ struct DashboardView: View {
     var body: some View {
         NavigationStack {
             List {
-                // ── Hero balance + 30-day sparkline ──
+                // ── Hero balance + 30-day sparkline, with the live bank
+                // balance folded in as a subordinate line rather than a
+                // second competing headline number ──
                 Section {
                     VStack(alignment: .leading, spacing: 6) {
                         HStack(alignment: .firstTextBaseline) {
@@ -103,19 +105,26 @@ struct DashboardView: View {
                             .frame(height: 50)
                             .padding(.top, 4)
                         }
-                    }
-                    .padding(.vertical, 6)
-                }
-                .listRowSeparator(.hidden)
 
-                // ── Live bank balance (Plaid) ──
-                if !store.isDecoyMode && plaidConfigured {
-                    Section {
-                        VStack(alignment: .leading, spacing: 6) {
-                            HStack(alignment: .firstTextBaseline) {
-                                Text("MACU CHECKING · LIVE")
-                                    .font(.system(size: 11, weight: .semibold))
+                        if !store.isDecoyMode && plaidConfigured {
+                            Divider().padding(.top, 4)
+                            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                                Text("MACU Checking")
+                                    .font(.caption)
                                     .foregroundStyle(.secondary)
+                                if let plaidBalance {
+                                    Text(fmt(plaidBalance.current ?? 0))
+                                        .font(.subheadline.weight(.semibold))
+                                        .monospacedDigit()
+                                } else if let plaidError {
+                                    Text(plaidError)
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                } else {
+                                    Text("Loading…")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
                                 Spacer()
                                 if plaidLoading {
                                     ProgressView()
@@ -124,34 +133,23 @@ struct DashboardView: View {
                                         Task { await refreshPlaidBalance() }
                                     } label: {
                                         Image(systemName: "arrow.clockwise")
-                                            .font(.system(size: 12, weight: .semibold))
+                                            .font(.system(size: 11, weight: .semibold))
                                     }
                                     .buttonStyle(.plain)
                                     .foregroundStyle(store.accentColor)
                                 }
                             }
-                            if let plaidBalance {
-                                Text(fmt(plaidBalance.current ?? 0))
-                                    .font(.system(size: 28, weight: .bold))
-                                    .monospacedDigit()
-                                Text("As of \(plaidBalance.asOf.formatted(date: .omitted, time: .shortened))")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                            } else if let plaidError {
-                                Text(plaidError)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            } else {
-                                Text("Loading…")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
+                            .padding(.top, 2)
                         }
-                        .padding(.vertical, 4)
                     }
-                    .listRowSeparator(.hidden)
-                    .task { await refreshPlaidBalance() }
+                    .padding(.vertical, 6)
+                    .task {
+                        if !store.isDecoyMode && plaidConfigured {
+                            await refreshPlaidBalance()
+                        }
+                    }
                 }
+                .listRowSeparator(.hidden)
 
                 // ── Bucket quick access ──
                 if !store.activeBuckets.isEmpty {
@@ -163,7 +161,8 @@ struct DashboardView: View {
                                 }
                             }
                             .padding(.horizontal)
-                            .padding(.vertical, 2)
+                            .padding(.top, 2)
+                            .padding(.bottom, 10)
                         }
                         .listRowInsets(EdgeInsets())
                     }
@@ -218,7 +217,7 @@ struct DashboardView: View {
                                 Text((entry.amount >= 0 ? "+" : "") + fmt(entry.amount))
                                     .fontWeight(.semibold)
                                     .monospacedDigit()
-                                    .foregroundStyle(entry.amount >= 0 ? .green : .primary)
+                                    .foregroundStyle(entry.amount >= 0 ? .green : .red)
                             }
                             .contentShape(Rectangle())
                             .onTapGesture {
