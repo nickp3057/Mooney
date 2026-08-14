@@ -2,6 +2,7 @@ import SwiftUI
 
 struct BucketsSettingsView: View {
     @Environment(AppStore.self) var store
+    @Environment(\.tabAccentColor) private var accentColor
     @State private var editingBucket: Bucket?
     @State private var showAddBucket = false
     @State private var showArchived = false
@@ -32,7 +33,7 @@ struct BucketsSettingsView: View {
 
             Section {
                 Button("+ New Bucket") { showAddBucket = true }
-                    .foregroundStyle(store.accentColor)
+                    .foregroundStyle(accentColor)
             }
 
             if !archived.isEmpty {

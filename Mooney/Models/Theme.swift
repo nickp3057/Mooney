@@ -1,3 +1,5 @@
+import SwiftUI
+
 // Apple's own named system colors — a small, recognizable set instead of
 // arbitrary custom hex, so bucket tags read as native iOS rather than a
 // rainbow of one-off swatches.
@@ -25,3 +27,33 @@ let bucketPalette: [String] = Array(curatedPalette.dropFirst())
 let accentPalette: [String] = ["#FF3B30", "#FF9500", "#FFCC00", "#34C759", "#007AFF", "#5856D6", "#AF52DE", "#FF2D55"]
 
 let defaultAccentHex = "#FF3B30"
+
+// The app's 4 tabs, each independently colorable from Settings >
+// Appearance. Sub-pages reached from a tab (pushed screens, sheets) inherit
+// that tab's color via the tabAccentColor environment value below — the tab
+// bar itself stays a single neutral tint so it doesn't look chaotic.
+enum AppTab: String, CaseIterable, Identifiable {
+    case ledger, add, subscriptions, settings
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .ledger:        return "Ledger"
+        case .add:            return "Add"
+        case .subscriptions: return "Subscriptions"
+        case .settings:       return "Settings"
+        }
+    }
+}
+
+private struct TabAccentColorKey: EnvironmentKey {
+    static let defaultValue = Color(hex: defaultAccentHex)
+}
+
+extension EnvironmentValues {
+    var tabAccentColor: Color {
+        get { self[TabAccentColorKey.self] }
+        set { self[TabAccentColorKey.self] = newValue }
+    }
+}

@@ -33,6 +33,7 @@ struct AddIncomeView: View {
     var isEditing: Bool { incomeToEdit != nil }
 
     var body: some View {
+        let accentColor = store.accentColor(for: .add)
         NavigationStack {
             if saved {
                 VStack(spacing: 16) {
@@ -47,8 +48,7 @@ struct AddIncomeView: View {
                         HStack {
                             Text("Total")
                             Spacer()
-                            MoneyEntryField(text: $totalStr, placeholder: "0.00", width: 110)
-                                .focused($moneyFieldFocused)
+                            MoneyEntryField(text: $totalStr, placeholder: "0.00", width: 110, isFocused: $moneyFieldFocused)
                         }
                         DatePicker("Date", selection: $date, displayedComponents: .date)
                         Picker("Source", selection: $sourceId) {
@@ -98,8 +98,7 @@ struct AddIncomeView: View {
                                         MoneyEntryField(text: Binding(
                                             get: { billAmounts[bill.id] ?? String(format: "%.2f", bill.amount) },
                                             set: { billAmounts[bill.id] = $0 }
-                                        ), placeholder: "0.00", width: 92)
-                                        .focused($moneyFieldFocused)
+                                        ), placeholder: "0.00", width: 92, isFocused: $moneyFieldFocused)
                                         .disabled(!includedBills.contains(bill.id))
                                         .foregroundStyle(includedBills.contains(bill.id) ? Color.primary : Color.secondary)
                                     }
@@ -153,8 +152,7 @@ struct AddIncomeView: View {
                                 MoneyEntryField(text: Binding(
                                     get: { allocs[bucket.id] ?? "" },
                                     set: { allocs[bucket.id] = $0 }
-                                ), placeholder: "0", width: 86)
-                                .focused($moneyFieldFocused)
+                                ), placeholder: "0", width: 86, isFocused: $moneyFieldFocused)
                                 if let suggested = suggestedAllocation(for: bucket),
                                    let label = allocationButtonLabel(for: bucket) {
                                     Button(label) {
@@ -182,7 +180,7 @@ struct AddIncomeView: View {
                                 .frame(maxWidth: .infinity).font(.headline)
                         }
                         .buttonStyle(.borderedProminent)
-                        .tint(store.accentColor)
+                        .tint(accentColor)
                         .disabled(total <= 0)
                     }
                     .listRowBackground(Color.clear)
@@ -205,6 +203,7 @@ struct AddIncomeView: View {
                 }
             }
         }
+        .environment(\.tabAccentColor, accentColor)
     }
 
     private func handleSave() {

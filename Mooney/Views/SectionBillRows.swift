@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SectionBillRows: View {
     @Environment(AppStore.self) var store
+    @Environment(\.tabAccentColor) private var accentColor
     let incomeId: String
     let bills: [BillPayment]
 
@@ -19,7 +20,7 @@ struct SectionBillRows: View {
                 } label: {
                     Image(systemName: bill.isPaid ? "checkmark.circle.fill" : canPay ? "circle" : "lock.circle")
                         .font(.system(size: 16))
-                        .foregroundStyle(bill.isPaid ? .green : canPay ? store.accentColor : .secondary)
+                        .foregroundStyle(bill.isPaid ? .green : canPay ? accentColor : .secondary)
                         .frame(width: 18, height: 18)
                 }
                 .buttonStyle(.plain)

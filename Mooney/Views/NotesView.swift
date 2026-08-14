@@ -3,6 +3,7 @@ import UIKit
 
 struct NotesView: View {
     @Environment(AppStore.self) var store
+    @Environment(\.tabAccentColor) private var accentColor
     @State private var copied = false
 
     var sorted: [Income] { store.state.incomes.sorted { $0.date > $1.date } }
@@ -44,13 +45,13 @@ struct NotesView: View {
                     if !p.note.isEmpty {
                         Text(p.note.uppercased())
                             .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(store.accentColor)
+                            .foregroundStyle(accentColor)
                     }
                     ForEach(p.bills) { bill in
                         HStack(spacing: 8) {
                             Image(systemName: "doc.text.fill")
                                 .font(.system(size: 10))
-                                .foregroundStyle(store.accentColor)
+                                .foregroundStyle(accentColor)
                                 .frame(width: 8, height: 8)
                             Text("\(bill.name)-")
                                 .font(.callout).foregroundStyle(.secondary)
@@ -82,7 +83,7 @@ struct NotesView: View {
                     copied = true
                     DispatchQueue.main.asyncAfter(deadline: .now() + 2) { copied = false }
                 }
-                .foregroundStyle(copied ? .green : store.accentColor)
+                .foregroundStyle(copied ? .green : accentColor)
             }
         }
     }

@@ -17,6 +17,8 @@ struct CalendarView: View {
     @State private var loggingPaymentId: String?
     @AppStorage("subscriptionSortOption") private var sortOption: SubscriptionSortOption = .nextDue
 
+    private var accentColor: Color { store.accentColor(for: .subscriptions) }
+
     private var allSubscriptionsSorted: [Subscription] {
         switch sortOption {
         case .nextDue: return store.state.subscriptions.sorted { $0.nextDueDate < $1.nextDueDate }
@@ -67,17 +69,19 @@ struct CalendarView: View {
                     VStack(spacing: 12) {
                         HStack {
                             Button { changeMonth(by: -1) } label: { Image(systemName: "chevron.left") }
+                                .buttonStyle(.plain)
                             Spacer()
                             Text(monthTitle).font(.headline)
                             Spacer()
                             Button { changeMonth(by: 1) } label: { Image(systemName: "chevron.right") }
+                                .buttonStyle(.plain)
                         }
-                        .foregroundStyle(store.accentColor)
+                        .foregroundStyle(accentColor)
 
                         HStack {
                             ForEach(Array(weekdaySymbols.enumerated()), id: \.offset) { _, s in
                                 Text(s)
-                                    .font(.caption2.weight(.semibold))
+                                    .font(.caption.weight(.semibold))
                                     .foregroundStyle(.secondary)
                                     .frame(maxWidth: .infinity)
                             }
@@ -88,6 +92,7 @@ struct CalendarView: View {
                                 dayCell(day)
                             }
                         }
+                        .id(displayedMonth)
                     }
                     .padding(.vertical, 4)
                 }
@@ -146,6 +151,7 @@ struct CalendarView: View {
                 }
             }
         }
+        .environment(\.tabAccentColor, accentColor)
     }
 
     private func agendaTitle(for date: Date) -> String {
@@ -159,8 +165,10 @@ struct CalendarView: View {
         if let day {
             let events = eventsByDay[day] ?? []
             let subscriptionEvents = events.filter { $0.kind == .subscription }
-            let otherEvents = events.filter { $0.kind != .subscription }
+            let cardEvents = events.filter { $0.kind == .cardPayment }
+            let hasPaycheck = events.contains { $0.kind == .paycheck }
             let subscriptionTotal = subscriptionEvents.compactMap(\.amount).reduce(0, +)
+            let cardColorHex = cardEvents.contains { $0.colorHex == "#FF3B30" } ? "#FF3B30" : "#8E8E93"
             let isSelected = selectedDate.map { cal.isDate(day, inSameDayAs: $0) } ?? false
             let isToday = cal.isDateInToday(day)
             Button {
@@ -172,28 +180,33 @@ struct CalendarView: View {
             } label: {
                 VStack(spacing: 3) {
                     Text("\(cal.component(.day, from: day))")
-                        .font(.system(size: 14, weight: isToday ? .bold : .regular))
-                        .foregroundStyle(isSelected ? Color.white : (isToday ? store.accentColor : .primary))
-                        .frame(width: 28, height: 28)
+                        .font(.system(size: 16, weight: isToday ? .bold : .regular))
+                        .foregroundStyle(isSelected ? Color.white : (isToday ? accentColor : .primary))
+                        .frame(width: 30, height: 30)
                         .background(
-                            Circle().fill(isSelected ? store.accentColor : Color.clear)
+                            Circle().fill(isSelected ? accentColor : Color.clear)
                         )
-                    if !subscriptionEvents.isEmpty {
-                        Text(fmtCompact(subscriptionTotal))
-                            .font(.system(size: 9, weight: .semibold))
-                            .foregroundStyle(Color(hex: "#5E5CE6"))
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.7)
-                            .frame(height: 10)
-                    } else if !otherEvents.isEmpty {
+                    if subscriptionEvents.isEmpty && !hasPaycheck && cardEvents.isEmpty {
+                        Color.clear.frame(height: 10)
+                    } else {
                         HStack(spacing: 2) {
-                            ForEach(Array(otherEvents.prefix(3).enumerated()), id: \.offset) { _, e in
-                                Circle().fill(Color(hex: e.colorHex)).frame(width: 4, height: 4)
+                            if !subscriptionEvents.isEmpty {
+                                Text(fmtCompact(subscriptionTotal))
+                                    .font(.system(size: 9, weight: .semibold))
+                                    .foregroundStyle(Color(hex: "#5E5CE6"))
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.7)
+                            }
+                            if hasPaycheck {
+                                Text("$")
+                                    .font(.system(size: 9, weight: .bold))
+                                    .foregroundStyle(Color(hex: "#34C759"))
+                            }
+                            if !cardEvents.isEmpty {
+                                Circle().fill(Color(hex: cardColorHex)).frame(width: 4, height: 4)
                             }
                         }
                         .frame(height: 10)
-                    } else {
-                        Color.clear.frame(height: 10)
                     }
                 }
             }
@@ -225,7 +238,7 @@ struct CalendarView: View {
         Button { editingSubscription = sub } label: {
             HStack(spacing: 12) {
                 Image(systemName: "arrow.clockwise.circle.fill")
-                    .foregroundStyle(store.accentColor)
+                    .foregroundStyle(accentColor)
                     .frame(width: 26, height: 26)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(sub.name).foregroundStyle(.primary)
@@ -254,8 +267,7 @@ struct CalendarView: View {
     }
 
     private func changeMonth(by delta: Int) {
-        guard let newMonth = cal.date(byAdding: .month, value: delta, to: displayedMonth) else { return }
-        displayedMonth = newMonth
+        displayedMonth = cal.date(byAdding: .month, value: delta, to: displayedMonth) ?? displayedMonth
     }
 }
 

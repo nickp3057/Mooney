@@ -2,6 +2,7 @@ import SwiftUI
 
 struct PayScheduleSettingsView: View {
     @Environment(AppStore.self) var store
+    @Environment(\.tabAccentColor) private var accentColor
     @Environment(\.dismiss) var dismiss
 
     @State private var nextPayDate = Date()
@@ -26,7 +27,7 @@ struct PayScheduleSettingsView: View {
                     store.setPaySchedule(nextPayDate: isoDateFormatter.string(from: nextPayDate), frequency: frequency)
                     dismiss()
                 }
-                .foregroundStyle(store.accentColor)
+                .foregroundStyle(accentColor)
             }
 
             if store.state.paySchedule != nil {

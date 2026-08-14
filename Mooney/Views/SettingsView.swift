@@ -15,6 +15,7 @@ struct SettingsView: View {
     @State private var decoyEnabled = AppLockManager.isDecoyEnabled
     @State private var pinSheetKind: PINSheetKind?
     @State private var showRemovePINConfirm = false
+    @State private var editingColorTab: AppTab?
 
     private enum PINSheetKind: Identifiable {
         case real, decoy
@@ -22,6 +23,7 @@ struct SettingsView: View {
     }
 
     var body: some View {
+        let accentColor = store.accentColor(for: .settings)
         NavigationStack {
             List {
                 if !store.isDecoyMode {
@@ -69,8 +71,25 @@ struct SettingsView: View {
                 }
 
                 Section {
+                    ForEach(AppTab.allCases) { tab in
+                        Button { editingColorTab = tab } label: {
+                            HStack {
+                                Text(tab.label).foregroundStyle(.primary)
+                                Spacer()
+                                Circle().fill(store.accentColor(for: tab)).frame(width: 20, height: 20)
+                            }
+                        }
+                    }
+                } header: {
+                    Text("Tab Colors")
+                } footer: {
+                    Text("Each tab can have its own color, used for its buttons, links, and highlights. Defaults to the color above.")
+                }
+
+                Section {
                     NavigationLink("Buckets") { BucketsSettingsView() }
                     NavigationLink("Bills") { BillsSettingsView() }
+                    NavigationLink("Credit Cards") { CreditCardsSettingsView() }
                     NavigationLink("Income Sources") { IncomeSourcesSettingsView() }
                     NavigationLink("Recurring Transfers") { RecurringTransfersSettingsView() }
                 }
@@ -158,7 +177,11 @@ struct SettingsView: View {
             } message: {
                 Text(dataMessage ?? "")
             }
+            .sheet(item: $editingColorTab) { tab in
+                TabColorPickerView(tab: tab)
+            }
         }
+        .environment(\.tabAccentColor, accentColor)
     }
 
     private func startExport() {

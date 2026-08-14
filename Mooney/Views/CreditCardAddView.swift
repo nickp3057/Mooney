@@ -6,6 +6,7 @@ struct CreditCardAddView: View {
 
     @State private var name = ""
     @State private var dueDay = 1
+    @State private var bankApp: BankApp?
 
     var body: some View {
         NavigationStack {
@@ -21,8 +22,15 @@ struct CreditCardAddView: View {
                         }
                     }
                     .pickerStyle(.menu)
+                    Picker("Bank App", selection: $bankApp) {
+                        Text("None").tag(BankApp?.none)
+                        ForEach(BankApp.allCases) { app in
+                            Text(app.label).tag(BankApp?.some(app))
+                        }
+                    }
+                    .pickerStyle(.menu)
                 } footer: {
-                    Text("The day of the month this card's payment is due. In months without that day, it's due on the last day instead.")
+                    Text("The day of the month this card's payment is due. In months without that day, it's due on the last day instead. Bank App adds a quick-open button on the Ledger's Cards Due section — best-effort, may just open the bank's website if the app doesn't support it.")
                 }
             }
             .navigationTitle("New Credit Card")
@@ -33,7 +41,7 @@ struct CreditCardAddView: View {
                     Button("Add") {
                         let trimmed = name.trimmingCharacters(in: .whitespaces)
                         guard !trimmed.isEmpty else { return }
-                        store.addCreditCard(CreditCard(id: UUID().uuidString, name: trimmed, dueDay: dueDay, isActive: true))
+                        store.addCreditCard(CreditCard(id: UUID().uuidString, name: trimmed, dueDay: dueDay, isActive: true, bankApp: bankApp))
                         dismiss()
                     }
                     .fontWeight(.semibold)

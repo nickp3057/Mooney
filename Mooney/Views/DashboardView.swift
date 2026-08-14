@@ -3,6 +3,7 @@ import Charts
 
 struct DashboardView: View {
     @Environment(AppStore.self) var store
+    @Environment(\.openURL) private var openURL
     @State private var selectedBucket: Bucket?
     @State private var showBalanceOverride = false
     @State private var loggingPaymentId: String?
@@ -58,6 +59,7 @@ struct DashboardView: View {
     }
 
     var body: some View {
+        let accentColor = store.accentColor(for: .ledger)
         NavigationStack {
             List {
                 // ── Hero balance + 30-day sparkline, with the live bank
@@ -74,10 +76,10 @@ struct DashboardView: View {
                                 showBalanceOverride = true
                             } label: {
                                 Text("Correct Balance")
-                                    .font(.system(size: 11, weight: .semibold))
+                                    .font(.system(size: 13, weight: .semibold))
                             }
                             .buttonStyle(.plain)
-                            .foregroundStyle(store.accentColor)
+                            .foregroundStyle(accentColor)
                         }
                         Text(fmt(store.totalSavings))
                             .font(.system(size: 40, weight: .bold))
@@ -97,13 +99,17 @@ struct DashboardView: View {
                                 }
                                 if let last = heroPoints.last {
                                     PointMark(x: .value("Date", last.date), y: .value("Balance", last.balance))
-                                        .foregroundStyle(store.accentColor)
+                                        .foregroundStyle(accentColor)
                                         .symbolSize(30)
                                 }
                             }
-                            .chartXAxis(.hidden)
+                            .chartXAxis {
+                                AxisMarks(values: .automatic(desiredCount: 2)) {
+                                    AxisValueLabel(format: .dateTime.month(.abbreviated).day(), centered: false)
+                                }
+                            }
                             .chartYAxis(.hidden)
-                            .frame(height: 50)
+                            .frame(height: 40)
                             .padding(.top, 4)
                         }
 
@@ -137,13 +143,13 @@ struct DashboardView: View {
                                             .font(.system(size: 11, weight: .semibold))
                                     }
                                     .buttonStyle(.plain)
-                                    .foregroundStyle(store.accentColor)
+                                    .foregroundStyle(accentColor)
                                 }
                             }
                             .padding(.top, 2)
                         }
                     }
-                    .padding(.vertical, 6)
+                    .padding(.vertical, 4)
                     .task {
                         if !store.isDecoyMode && plaidConfigured {
                             await refreshPlaidBalance()
@@ -173,30 +179,10 @@ struct DashboardView: View {
                     .listRowSeparator(.hidden)
                 }
 
-                if !store.pendingCardPayments.isEmpty {
-                    Section("Cards Due") {
-                        ForEach(store.pendingCardPayments, id: \.payment.id) { pending in
-                            Button {
-                                loggingPaymentId = pending.payment.id
-                            } label: {
-                                HStack(spacing: 10) {
-                                    Image(systemName: "creditcard.fill")
-                                        .foregroundStyle(store.accentColor)
-                                        .frame(width: 20)
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(pending.card.name).foregroundStyle(.primary)
-                                        Text(pending.payment.amountPaid > 0
-                                             ? "Due \(fmtDueDate(pending.payment.dueDate)) · \(fmt(pending.payment.amountPaid)) paid"
-                                             : "Due \(fmtDueDate(pending.payment.dueDate))")
-                                            .font(.caption).foregroundStyle(.secondary)
-                                    }
-                                    Spacer()
-                                    Text("Log Payment")
-                                        .font(.caption.weight(.semibold))
-                                        .foregroundStyle(store.accentColor)
-                                }
-                            }
-                            .buttonStyle(.plain)
+                if !store.currentCardPayments.isEmpty {
+                    Section("Credit Cards") {
+                        ForEach(store.currentCardPayments, id: \.payment.id) { pending in
+                            cardRow(pending)
                         }
                     }
                 }
@@ -212,7 +198,7 @@ struct DashboardView: View {
                                         .font(.title3)
                                 }
                                 .buttonStyle(.plain)
-                                .foregroundStyle(bill.canPay ? store.accentColor : .secondary)
+                                .foregroundStyle(bill.canPay ? accentColor : .secondary)
                                 .disabled(!bill.canPay)
 
                                 VStack(alignment: .leading, spacing: 2) {
@@ -270,6 +256,7 @@ struct DashboardView: View {
             }
             .listStyle(.plain)
             .navigationTitle("Ledger")
+            .navigationBarTitleDisplayMode(.inline)
             .sheet(item: $selectedBucket) { BucketDetailView(bucket: $0) }
             .sheet(isPresented: $showBalanceOverride) { BalanceOverrideView() }
             .sheet(isPresented: Binding(
@@ -281,6 +268,7 @@ struct DashboardView: View {
                 }
             }
         }
+        .environment(\.tabAccentColor, accentColor)
     }
 
     private func refreshPlaidBalance() async {
@@ -291,6 +279,72 @@ struct DashboardView: View {
             plaidError = nil
         } catch {
             plaidError = error.localizedDescription
+        }
+    }
+
+    @ViewBuilder
+    private func cardRow(_ pending: (card: CreditCard, payment: CardPayment)) -> some View {
+        let isPaid = pending.payment.isPaid
+        let accentColor = store.accentColor(for: .ledger)
+        HStack(spacing: 10) {
+            Group {
+                if isPaid {
+                    HStack(spacing: 10) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                            .frame(width: 20)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(pending.card.name).foregroundStyle(.primary)
+                            Text("Paid for this cycle")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Text("Paid").font(.caption.weight(.semibold)).foregroundStyle(.green)
+                    }
+                } else {
+                    Button {
+                        loggingPaymentId = pending.payment.id
+                    } label: {
+                        HStack(spacing: 10) {
+                            Image(systemName: "creditcard.fill")
+                                .foregroundStyle(accentColor)
+                                .frame(width: 20)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(pending.card.name).foregroundStyle(.primary)
+                                Text(pending.payment.amountPaid > 0
+                                     ? "Due \(fmtDueDate(pending.payment.dueDate)) · \(fmt(pending.payment.amountPaid)) paid"
+                                     : "Due \(fmtDueDate(pending.payment.dueDate))")
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Text("Log Payment")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(accentColor)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            if let app = pending.card.bankApp {
+                Button { openBankApp(app) } label: {
+                    Image(systemName: "arrow.up.forward.app.fill")
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(accentColor)
+            }
+        }
+        .padding(.vertical, 2)
+    }
+
+    private func openBankApp(_ app: BankApp) {
+        if let appURL = app.appURL {
+            openURL(appURL) { accepted in
+                if !accepted, let web = app.webFallbackURL {
+                    openURL(web)
+                }
+            }
+        } else if let web = app.webFallbackURL {
+            openURL(web)
         }
     }
 }

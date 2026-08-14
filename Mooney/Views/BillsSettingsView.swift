@@ -2,6 +2,7 @@ import SwiftUI
 
 struct BillsSettingsView: View {
     @Environment(AppStore.self) var store
+    @Environment(\.tabAccentColor) private var accentColor
     @State private var editingBill: Bill?
     @State private var showAddBill = false
 
@@ -17,7 +18,7 @@ struct BillsSettingsView: View {
                         }
                 }
                 Button("+ New Bill") { showAddBill = true }
-                    .foregroundStyle(store.accentColor)
+                    .foregroundStyle(accentColor)
             }
         }
         .listStyle(.insetGrouped)

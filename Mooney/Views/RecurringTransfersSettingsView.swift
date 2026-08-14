@@ -2,6 +2,7 @@ import SwiftUI
 
 struct RecurringTransfersSettingsView: View {
     @Environment(AppStore.self) var store
+    @Environment(\.tabAccentColor) private var accentColor
     @State private var editingTransfer: RecurringTransfer?
     @State private var showAddTransfer = false
 
@@ -17,7 +18,7 @@ struct RecurringTransfersSettingsView: View {
                         }
                 }
                 Button("+ New Recurring Transfer") { showAddTransfer = true }
-                    .foregroundStyle(store.accentColor)
+                    .foregroundStyle(accentColor)
             }
         }
         .listStyle(.insetGrouped)

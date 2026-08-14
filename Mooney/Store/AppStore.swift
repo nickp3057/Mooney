@@ -110,6 +110,21 @@ class AppStore {
         save()
     }
 
+    func accentColor(for tab: AppTab) -> Color {
+        if let hex = state.tabAccentColors[tab.rawValue] { return Color(hex: hex) }
+        return accentColor
+    }
+
+    func setAccentColor(hex: String, for tab: AppTab) {
+        state.tabAccentColors[tab.rawValue] = hex
+        save()
+    }
+
+    func resetAccentColor(for tab: AppTab) {
+        state.tabAccentColors.removeValue(forKey: tab.rawValue)
+        save()
+    }
+
     // ── Mutations ──
 
     func addIncome(_ p: Income)      { state.incomes.append(p); save() }
@@ -390,14 +405,19 @@ class AppStore {
         ensureCardPayments()
     }
 
-    var pendingCardPayments: [(card: CreditCard, payment: CardPayment)] {
-        state.cardPayments
-            .filter { !$0.isPaid }
-            .compactMap { payment in
-                guard let card = state.creditCards.first(where: { $0.id == payment.cardId }) else { return nil }
-                return (card: card, payment: payment)
-            }
-            .sorted { $0.payment.dueDate < $1.payment.dueDate }
+    // Surfaces every active card's current cycle — paid or not — so the
+    // Dashboard can show a "paid off" state instead of the card just
+    // disappearing. A card stays "paid" here until ensureCardPayments()
+    // rolls it forward on the next launch/foreground, since that's the only
+    // thing that creates the next cycle's unpaid record.
+    var currentCardPayments: [(card: CreditCard, payment: CardPayment)] {
+        state.creditCards.filter { $0.isActive }.compactMap { card in
+            guard let payment = state.cardPayments
+                .filter({ $0.cardId == card.id })
+                .max(by: { $0.dueDate < $1.dueDate }) else { return nil }
+            return (card: card, payment: payment)
+        }
+        .sorted { $0.payment.dueDate < $1.payment.dueDate }
     }
 
     func moveBuckets(from source: IndexSet, to destination: Int, among list: [Bucket]) {
@@ -643,7 +663,10 @@ class AppStore {
     // transaction, for the Ledger view.
     var ledgerEntries: [LedgerEntry] {
         var items: [LedgerEntry] = []
-        for p in state.incomes {
+        // Reversed so that, after the stable sort below, same-day ties (the
+        // date string has no time component) land most-recently-added first
+        // instead of oldest-added first.
+        for p in state.incomes.reversed() {
             let sourceName = incomeSourceName(p.sourceId)
             items.append(LedgerEntry(
                 id: "pay_\(p.id)",
@@ -655,7 +678,7 @@ class AppStore {
                 colorHex: "#8E8E93"
             ))
         }
-        for t in state.transactions {
+        for t in state.transactions.reversed() {
             let bucket = state.buckets.first { $0.id == t.bucketId }
             items.append(LedgerEntry(
                 id: t.id,

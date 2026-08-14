@@ -2,6 +2,7 @@ import SwiftUI
 
 struct BucketSettingRow: View {
     @Environment(AppStore.self) var store
+    @Environment(\.tabAccentColor) private var accentColor
     let bucket: Bucket
     let onEdit: () -> Void
 
@@ -29,9 +30,9 @@ struct BucketSettingRow: View {
                     store.toggleActive(id: bucket.id)
                 }
                 .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(bucket.isActive ? store.accentColor : .secondary)
+                .foregroundStyle(bucket.isActive ? accentColor : .secondary)
                 .padding(.horizontal, 10).padding(.vertical, 4)
-                .background(bucket.isActive ? store.accentColor.opacity(0.15) : Color(.systemGray6))
+                .background(bucket.isActive ? accentColor.opacity(0.15) : Color(.systemGray6))
                 .clipShape(RoundedRectangle(cornerRadius: 8))
                 .buttonStyle(.plain)
 

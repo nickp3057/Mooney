@@ -7,8 +7,6 @@ struct ContentView: View {
         TabView {
             DashboardView()
                 .tabItem { Label("Ledger", systemImage: "house") }
-            CreditCardsView()
-                .tabItem { Label("Cards", systemImage: "creditcard") }
             AddIncomeView()
                 .tabItem { Label("Add", systemImage: "plus.circle.fill") }
             CalendarView()

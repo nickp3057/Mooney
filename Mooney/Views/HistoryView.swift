@@ -3,6 +3,7 @@ import Charts
 
 struct HistoryView: View {
     @Environment(AppStore.self) var store
+    @Environment(\.tabAccentColor) private var accentColor
     @State private var expandedId: String?
     @State private var editingIncome: Income?
     @State private var incomePendingDelete: Income?
@@ -37,7 +38,7 @@ struct HistoryView: View {
                                 x: .value("Date", point.date),
                                 y: .value("Balance", point.balance)
                             )
-                            .foregroundStyle(store.accentColor)
+                            .foregroundStyle(accentColor)
                             .interpolationMethod(.catmullRom)
                             AreaMark(
                                 x: .value("Date", point.date),
@@ -45,7 +46,7 @@ struct HistoryView: View {
                             )
                             .foregroundStyle(
                                 LinearGradient(
-                                    colors: [store.accentColor.opacity(0.18), .clear],
+                                    colors: [accentColor.opacity(0.18), .clear],
                                     startPoint: .top, endPoint: .bottom
                                 )
                             )
@@ -54,7 +55,7 @@ struct HistoryView: View {
                                 x: .value("Date", point.date),
                                 y: .value("Balance", point.balance)
                             )
-                            .foregroundStyle(store.accentColor)
+                            .foregroundStyle(accentColor)
                             .symbolSize(18)
                         }
                         .chartXAxis {
@@ -70,7 +71,7 @@ struct HistoryView: View {
                             Spacer()
                             Text(fmt(savingsChart.last?.balance ?? 0))
                                 .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(store.accentColor)
+                                .foregroundStyle(accentColor)
                         }
                     }
                 }
@@ -104,7 +105,7 @@ struct HistoryView: View {
                                     Text(fmtDate(p.date))
                                     if !p.note.isEmpty {
                                         Text(p.note).font(.caption)
-                                            .foregroundStyle(store.accentColor)
+                                            .foregroundStyle(accentColor)
                                     }
                                 }
                                 Spacer()
@@ -114,7 +115,7 @@ struct HistoryView: View {
                         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                             Button("Delete", role: .destructive) { incomePendingDelete = p }
                             Button("Edit") { editingIncome = p }
-                                .tint(store.accentColor)
+                                .tint(accentColor)
                         }
                         .contextMenu {
                             Button("Edit Income") { editingIncome = p }

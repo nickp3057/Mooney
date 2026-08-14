@@ -12,6 +12,7 @@ struct LogCardPaymentView: View {
 
     @State private var amountStr = ""
     @State private var showMarkPaidConfirm = false
+    @State private var showConfetti = false
 
     private var payment: CardPayment? {
         store.state.cardPayments.first { $0.id == paymentId }
@@ -72,9 +73,13 @@ struct LogCardPaymentView: View {
             .confirmationDialog("Mark \(card?.name ?? "this card") as paid off?", isPresented: $showMarkPaidConfirm, titleVisibility: .visible) {
                 Button("Mark Paid Off", role: .destructive) {
                     store.markCardPaidOff(paymentId: paymentId)
-                    dismiss()
+                    showConfetti = true
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) { dismiss() }
                 }
                 Button("Cancel", role: .cancel) {}
+            }
+            .overlay {
+                if showConfetti { ConfettiView() }
             }
         }
     }

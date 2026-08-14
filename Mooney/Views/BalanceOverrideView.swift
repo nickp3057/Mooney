@@ -22,8 +22,7 @@ struct BalanceOverrideView: View {
                     HStack {
                         Text("Set To")
                         Spacer()
-                        MoneyEntryField(text: $targetStr, placeholder: "0.00", width: 110)
-                            .focused($amountFocused)
+                        MoneyEntryField(text: $targetStr, placeholder: "0.00", width: 110, isFocused: $amountFocused)
                     }
                     if let delta, delta != 0 {
                         HStack {
@@ -55,6 +54,11 @@ struct BalanceOverrideView: View {
                     }
                     .fontWeight(.semibold)
                     .disabled(target == nil)
+                }
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") { amountFocused = false }
+                        .fontWeight(.semibold)
                 }
             }
         }

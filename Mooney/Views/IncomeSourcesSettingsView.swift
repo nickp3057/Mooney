@@ -2,6 +2,7 @@ import SwiftUI
 
 struct IncomeSourcesSettingsView: View {
     @Environment(AppStore.self) var store
+    @Environment(\.tabAccentColor) private var accentColor
     @State private var showAddSource = false
 
     var body: some View {
@@ -16,7 +17,7 @@ struct IncomeSourcesSettingsView: View {
                         }
                 }
                 Button("+ New Source") { showAddSource = true }
-                    .foregroundStyle(store.accentColor)
+                    .foregroundStyle(accentColor)
             }
         }
         .listStyle(.insetGrouped)

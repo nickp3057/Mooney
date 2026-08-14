@@ -16,6 +16,9 @@ DerivedData/
 # macOS
 .DS_Store
 
+# Local Claude Code tool config — not project source
+.claude/
+
 # Personal data / backups — never commit real financial exports
 *.import.json
 *backup*.json
