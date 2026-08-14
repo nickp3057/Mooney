@@ -1,23 +1,28 @@
 import Foundation
 
 struct CalendarEvent: Identifiable {
-    enum Kind { case subscription, cardPayment, paycheck, recurringTransfer }
+    enum Kind { case subscription, cardPayment, paycheck }
     var id: String
     var date: Date
     var title: String
     var subtitle: String
     var colorHex: String
     var kind: Kind
-    // Points back to the originating Subscription/CreditCard/RecurringTransfer
-    // id (nil for paychecks, which have nothing to open) so the Calendar view
-    // can route a tap to the right edit/payment sheet.
+    // Points back to the originating Subscription/CreditCard id (nil for
+    // paychecks, which have nothing to open) so the Calendar view can route
+    // a tap to the right edit/payment sheet.
     var sourceId: String?
+    // Raw charge amount, populated for .subscription so the calendar grid
+    // can render a dollar figure instead of just a dot. Unused otherwise.
+    var amount: Double?
 }
 
 // Aggregates every money-related date (subscriptions, credit card due
-// dates, upcoming paychecks, recurring transfers) into one list for the
-// Calendar view. Everything here is a read-only projection — none of this
-// creates transactions or mutates state, unlike runScheduledTransfers.
+// dates, upcoming paychecks) into one list for the Calendar view. Recurring
+// transfers are intentionally not projected here — that's plumbing, not a
+// charge — see Settings for managing them. Everything here is a read-only
+// projection — none of this creates transactions or mutates state, unlike
+// runScheduledTransfers.
 extension AppStore {
     func calendarEvents(forMonthContaining date: Date) -> [CalendarEvent] {
         let cal = Calendar.current
@@ -35,7 +40,8 @@ extension AppStore {
                     subtitle: "Subscription · \(fmt(sub.amount))",
                     colorHex: "#5E5CE6",
                     kind: .subscription,
-                    sourceId: sub.id
+                    sourceId: sub.id,
+                    amount: sub.amount
                 ))
             }
         }
@@ -78,27 +84,6 @@ extension AppStore {
                     colorHex: "#34C759",
                     kind: .paycheck,
                     sourceId: nil
-                ))
-            }
-        }
-
-        for transfer in state.recurringTransfers where transfer.isActive {
-            guard let transferStart = isoDateFormatter.date(from: transfer.startDate) else { continue }
-            let anchor: Date
-            if let lastRunStr = transfer.lastRunDate, let lastRun = isoDateFormatter.date(from: lastRunStr) {
-                anchor = transfer.frequency.nextDate(after: lastRun)
-            } else {
-                anchor = transferStart
-            }
-            for occurrence in projectOccurrences(anchor: anchor, frequency: transfer.frequency, start: start, end: end) {
-                events.append(CalendarEvent(
-                    id: "xfer_\(transfer.id)_\(isoDateFormatter.string(from: occurrence))",
-                    date: occurrence,
-                    title: transfer.name,
-                    subtitle: "Transfer · \(fmt(transfer.amount))",
-                    colorHex: "#FF9500",
-                    kind: .recurringTransfer,
-                    sourceId: transfer.id
                 ))
             }
         }

@@ -3,9 +3,9 @@ import SwiftUI
 struct CalendarView: View {
     @Environment(AppStore.self) var store
     @State private var displayedMonth = Calendar.current.startOfDay(for: Date())
-    @State private var selectedDate = Calendar.current.startOfDay(for: Date())
+    @State private var selectedDate: Date? = Calendar.current.startOfDay(for: Date())
     @State private var editingSubscription: Subscription?
-    @State private var editingTransfer: RecurringTransfer?
+    @State private var showAdd = false
     @State private var loggingPaymentId: String?
 
     private let cal = Calendar.current
@@ -20,7 +20,8 @@ struct CalendarView: View {
     }
 
     private var selectedDayEvents: [CalendarEvent] {
-        eventsByDay[selectedDate] ?? []
+        guard let selectedDate else { return [] }
+        return eventsByDay[selectedDate] ?? []
     }
 
     private var gridDays: [Date?] {
@@ -75,20 +76,37 @@ struct CalendarView: View {
                 }
                 .listRowSeparator(.hidden)
 
-                Section(agendaTitle) {
-                    if selectedDayEvents.isEmpty {
-                        Text("Nothing scheduled").foregroundStyle(.secondary)
-                    } else {
-                        ForEach(selectedDayEvents) { event in
-                            eventRow(event)
+                if let selectedDate {
+                    Section(agendaTitle(for: selectedDate)) {
+                        if selectedDayEvents.isEmpty {
+                            Text("Nothing scheduled").foregroundStyle(.secondary)
+                        } else {
+                            ForEach(selectedDayEvents) { event in
+                                eventRow(event)
+                            }
+                        }
+                    }
+                } else {
+                    Section("All Subscriptions") {
+                        if store.sortedSubscriptions.isEmpty {
+                            Text("No subscriptions yet.").foregroundStyle(.secondary)
+                        } else {
+                            ForEach(store.sortedSubscriptions) { sub in
+                                subscriptionRow(sub)
+                            }
                         }
                     }
                 }
             }
             .listStyle(.plain)
-            .navigationTitle("Calendar")
+            .navigationTitle("Subscriptions")
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    Button { showAdd = true } label: { Image(systemName: "plus") }
+                }
+            }
             .sheet(item: $editingSubscription) { SubscriptionEditView(subscription: $0) }
-            .sheet(item: $editingTransfer) { RecurringTransferEditView(transfer: $0) }
+            .sheet(isPresented: $showAdd) { SubscriptionAddView() }
             .sheet(isPresented: Binding(
                 get: { loggingPaymentId != nil },
                 set: { if !$0 { loggingPaymentId = nil } }
@@ -100,20 +118,27 @@ struct CalendarView: View {
         }
     }
 
-    private var agendaTitle: String {
+    private func agendaTitle(for date: Date) -> String {
         let df = DateFormatter()
         df.dateFormat = "EEEE, MMM d"
-        return df.string(from: selectedDate)
+        return df.string(from: date)
     }
 
     @ViewBuilder
     private func dayCell(_ day: Date?) -> some View {
         if let day {
             let events = eventsByDay[day] ?? []
-            let isSelected = cal.isDate(day, inSameDayAs: selectedDate)
+            let subscriptionEvents = events.filter { $0.kind == .subscription }
+            let otherEvents = events.filter { $0.kind != .subscription }
+            let subscriptionTotal = subscriptionEvents.compactMap(\.amount).reduce(0, +)
+            let isSelected = selectedDate.map { cal.isDate(day, inSameDayAs: $0) } ?? false
             let isToday = cal.isDateInToday(day)
             Button {
-                selectedDate = day
+                if let selectedDate, cal.isDate(day, inSameDayAs: selectedDate) {
+                    self.selectedDate = nil
+                } else {
+                    selectedDate = day
+                }
             } label: {
                 VStack(spacing: 3) {
                     Text("\(cal.component(.day, from: day))")
@@ -123,17 +148,28 @@ struct CalendarView: View {
                         .background(
                             Circle().fill(isSelected ? store.accentColor : Color.clear)
                         )
-                    HStack(spacing: 2) {
-                        ForEach(Array(events.prefix(3).enumerated()), id: \.offset) { _, e in
-                            Circle().fill(Color(hex: e.colorHex)).frame(width: 4, height: 4)
+                    if !subscriptionEvents.isEmpty {
+                        Text(fmtCompact(subscriptionTotal))
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundStyle(Color(hex: "#5E5CE6"))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                            .frame(height: 10)
+                    } else if !otherEvents.isEmpty {
+                        HStack(spacing: 2) {
+                            ForEach(Array(otherEvents.prefix(3).enumerated()), id: \.offset) { _, e in
+                                Circle().fill(Color(hex: e.colorHex)).frame(width: 4, height: 4)
+                            }
                         }
+                        .frame(height: 10)
+                    } else {
+                        Color.clear.frame(height: 10)
                     }
-                    .frame(height: 4)
                 }
             }
             .buttonStyle(.plain)
         } else {
-            Color.clear.frame(height: 42)
+            Color.clear.frame(height: 48)
         }
     }
 
@@ -154,12 +190,29 @@ struct CalendarView: View {
         .buttonStyle(.plain)
     }
 
+    @ViewBuilder
+    private func subscriptionRow(_ sub: Subscription) -> some View {
+        Button { editingSubscription = sub } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "arrow.clockwise.circle.fill")
+                    .foregroundStyle(store.accentColor)
+                    .frame(width: 26, height: 26)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(sub.name).foregroundStyle(.primary)
+                    Text("\(sub.cadence.label) · due \(fmtDueDate(sub.nextDueDate))")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer()
+                Text(fmt(sub.amount)).foregroundStyle(.secondary)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
     private func handleTap(_ event: CalendarEvent) {
         switch event.kind {
         case .subscription:
             editingSubscription = store.state.subscriptions.first { $0.id == event.sourceId }
-        case .recurringTransfer:
-            editingTransfer = store.state.recurringTransfers.first { $0.id == event.sourceId }
         case .cardPayment:
             guard let cardId = event.sourceId else { return }
             let dueISO = isoDateFormatter.string(from: event.date)
@@ -174,4 +227,10 @@ struct CalendarView: View {
         guard let newMonth = cal.date(byAdding: .month, value: delta, to: displayedMonth) else { return }
         displayedMonth = newMonth
     }
+}
+
+// Rounds to the nearest dollar for the tight calendar-cell label — the
+// agenda list below shows the precise amount.
+private func fmtCompact(_ n: Double) -> String {
+    "$\(Int(n.rounded()))"
 }

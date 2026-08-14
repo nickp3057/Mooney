@@ -36,6 +36,15 @@ func fmtDate(_ iso: String) -> String {
     return df.string(from: d)
 }
 
+// Drops the year unless it differs from this year — e.g. "Mar 4" vs. "Mar 4, 2027".
+func fmtDueDate(_ iso: String) -> String {
+    guard let d = isoDateFormatter.date(from: iso) else { return iso }
+    let cal = Calendar.current
+    let df = DateFormatter()
+    df.dateFormat = cal.component(.year, from: d) == cal.component(.year, from: Date()) ? "MMM d" : "MMM d, yyyy"
+    return df.string(from: d)
+}
+
 func todayISO() -> String {
     isoDateFormatter.string(from: Date())
 }

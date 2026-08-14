@@ -12,7 +12,7 @@ struct ContentView: View {
             HistoryView()
                 .tabItem { Label("History", systemImage: "list.bullet") }
             CalendarView()
-                .tabItem { Label("Calendar", systemImage: "calendar") }
+                .tabItem { Label("Subscriptions", systemImage: "calendar") }
             SettingsView()
                 .tabItem { Label("Settings", systemImage: "gear") }
         }

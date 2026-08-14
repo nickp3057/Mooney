@@ -578,6 +578,19 @@ class AppStore {
         state.subscriptions.sorted { $0.nextDueDate < $1.nextDueDate }
     }
 
+    // Yearly subscriptions are excluded entirely (not prorated) — this is a
+    // "what recurs every month" total, not an amortized annual cost.
+    var monthlySubscriptionTotal: Double {
+        state.subscriptions.reduce(0) { total, sub in
+            switch sub.cadence {
+            case .weekly:   return total + sub.amount * 52 / 12
+            case .biweekly: return total + sub.amount * 26 / 12
+            case .monthly:  return total + sub.amount
+            case .yearly:   return total
+            }
+        }
+    }
+
     func addSubscription(_ s: Subscription) { state.subscriptions.append(s); save() }
     func deleteSubscription(id: String)     { state.subscriptions.removeAll { $0.id == id }; save() }
 
