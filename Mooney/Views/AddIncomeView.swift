@@ -163,6 +163,14 @@ struct AddIncomeView: View {
                                     .buttonStyle(.bordered)
                                     .disabled(total <= 0)
                                 }
+                                if let goalNeed = store.suggestedGoalContribution(for: bucket), goalNeed > 0 {
+                                    Button("Goal") {
+                                        allocs[bucket.id] = String(format: "%.2f", goalNeed.rounded(.up))
+                                    }
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .buttonStyle(.bordered)
+                                    .disabled(total <= 0)
+                                }
                             }
                         }
                     }

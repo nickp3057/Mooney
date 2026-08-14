@@ -9,8 +9,11 @@ struct AppState: Codable {
     var incomeSources: [IncomeSource]
     var recurringTransfers: [RecurringTransfer]
     var subscriptions: [Subscription]
+    var paySchedule: PaySchedule?
+    var creditCards: [CreditCard]
+    var cardPayments: [CardPayment]
 
-    init(buckets: [Bucket], incomes: [Income], transactions: [AppTransaction], bills: [Bill] = seedBills, accentColorHex: String = defaultAccentHex, incomeSources: [IncomeSource] = seedIncomeSources, recurringTransfers: [RecurringTransfer] = [], subscriptions: [Subscription] = []) {
+    init(buckets: [Bucket], incomes: [Income], transactions: [AppTransaction], bills: [Bill] = seedBills, accentColorHex: String = defaultAccentHex, incomeSources: [IncomeSource] = seedIncomeSources, recurringTransfers: [RecurringTransfer] = [], subscriptions: [Subscription] = [], paySchedule: PaySchedule? = nil, creditCards: [CreditCard] = [], cardPayments: [CardPayment] = []) {
         self.buckets = buckets
         self.incomes = incomes
         self.transactions = transactions
@@ -19,12 +22,15 @@ struct AppState: Codable {
         self.incomeSources = incomeSources
         self.recurringTransfers = recurringTransfers
         self.subscriptions = subscriptions
+        self.paySchedule = paySchedule
+        self.creditCards = creditCards
+        self.cardPayments = cardPayments
     }
 
     enum CodingKeys: String, CodingKey {
         // "incomes" kept on the wire as "paychecks" so existing saved data
         // (and exported backups) still decode without a migration.
-        case buckets, incomes = "paychecks", transactions, bills, accentColorHex, incomeSources, recurringTransfers, subscriptions
+        case buckets, incomes = "paychecks", transactions, bills, accentColorHex, incomeSources, recurringTransfers, subscriptions, paySchedule, creditCards, cardPayments
     }
 
     init(from decoder: Decoder) throws {
@@ -37,5 +43,8 @@ struct AppState: Codable {
         incomeSources = try container.decodeIfPresent([IncomeSource].self, forKey: .incomeSources) ?? seedIncomeSources
         recurringTransfers = try container.decodeIfPresent([RecurringTransfer].self, forKey: .recurringTransfers) ?? []
         subscriptions = try container.decodeIfPresent([Subscription].self, forKey: .subscriptions) ?? []
+        paySchedule = try container.decodeIfPresent(PaySchedule.self, forKey: .paySchedule)
+        creditCards = try container.decodeIfPresent([CreditCard].self, forKey: .creditCards) ?? []
+        cardPayments = try container.decodeIfPresent([CardPayment].self, forKey: .cardPayments) ?? []
     }
 }

@@ -11,12 +11,15 @@ struct ContentView: View {
                 .tabItem { Label("Income", systemImage: "plus.circle") }
             HistoryView()
                 .tabItem { Label("History", systemImage: "list.bullet") }
-            SubscriptionsView()
-                .tabItem { Label("Subscriptions", systemImage: "arrow.clockwise.circle") }
+            CalendarView()
+                .tabItem { Label("Calendar", systemImage: "calendar") }
             SettingsView()
                 .tabItem { Label("Settings", systemImage: "gear") }
         }
         .tint(store.accentColor)
+        .fullScreenCover(isPresented: Bindable(store).isLocked) {
+            LockView()
+        }
     }
 }
 

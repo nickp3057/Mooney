@@ -13,6 +13,9 @@ struct MoonayApp: App {
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active {
                 store.runScheduledTransfers()
+                store.ensureCardPayments()
+            } else if newPhase == .background {
+                store.lock()
             }
         }
     }

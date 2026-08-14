@@ -1,0 +1,16 @@
+{
+  "name": "mooney-plaid-backend",
+  "version": "1.0.0",
+  "description": "Single-user Plaid balance backend for Mooney, meant to run on a home NAS behind Tailscale only.",
+  "private": true,
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "plaid": "^45.0.0"
+  }
+}

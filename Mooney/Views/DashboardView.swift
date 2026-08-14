@@ -5,6 +5,15 @@ struct DashboardView: View {
     @Environment(AppStore.self) var store
     @State private var selectedBucket: Bucket?
     @State private var showBalanceOverride = false
+    @State private var plaidBalance: PlaidBalance?
+    @State private var plaidError: String?
+    @State private var plaidLoading = false
+
+    private let plaidClient = PlaidClient()
+
+    private var plaidConfigured: Bool {
+        !(PlaidClient.backendURL ?? "").isEmpty
+    }
 
     private struct LedgerGroup: Identifiable {
         var id: String { label }
@@ -99,11 +108,56 @@ struct DashboardView: View {
                 }
                 .listRowSeparator(.hidden)
 
+                // ── Live bank balance (Plaid) ──
+                if !store.isDecoyMode && plaidConfigured {
+                    Section {
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack(alignment: .firstTextBaseline) {
+                                Text("MACU CHECKING · LIVE")
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .foregroundStyle(.secondary)
+                                Spacer()
+                                if plaidLoading {
+                                    ProgressView()
+                                } else {
+                                    Button {
+                                        Task { await refreshPlaidBalance() }
+                                    } label: {
+                                        Image(systemName: "arrow.clockwise")
+                                            .font(.system(size: 12, weight: .semibold))
+                                    }
+                                    .buttonStyle(.plain)
+                                    .foregroundStyle(store.accentColor)
+                                }
+                            }
+                            if let plaidBalance {
+                                Text(fmt(plaidBalance.current ?? 0))
+                                    .font(.system(size: 28, weight: .bold))
+                                    .monospacedDigit()
+                                Text("As of \(plaidBalance.asOf.formatted(date: .omitted, time: .shortened))")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            } else if let plaidError {
+                                Text(plaidError)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                Text("Loading…")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    }
+                    .listRowSeparator(.hidden)
+                    .task { await refreshPlaidBalance() }
+                }
+
                 // ── Bucket quick access ──
                 if !store.activeBuckets.isEmpty {
                     Section {
                         ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 8) {
+                            HStack(spacing: 6) {
                                 ForEach(store.activeBuckets) { bucket in
                                     BucketChip(bucket: bucket) { selectedBucket = bucket }
                                 }
@@ -187,6 +241,17 @@ struct DashboardView: View {
             .navigationTitle("Ledger")
             .sheet(item: $selectedBucket) { BucketDetailView(bucket: $0) }
             .sheet(isPresented: $showBalanceOverride) { BalanceOverrideView() }
+        }
+    }
+
+    private func refreshPlaidBalance() async {
+        plaidLoading = true
+        defer { plaidLoading = false }
+        do {
+            plaidBalance = try await plaidClient.fetchBalance()
+            plaidError = nil
+        } catch {
+            plaidError = error.localizedDescription
         }
     }
 }

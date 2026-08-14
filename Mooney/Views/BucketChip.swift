@@ -12,19 +12,19 @@ struct BucketChip: View {
         let display = bucket.isSpending ? lastA : bal
 
         Button(action: onTap) {
-            HStack(spacing: 6) {
+            HStack(spacing: 5) {
                 RoundedRectangle(cornerRadius: 2)
                     .fill(bucket.color)
-                    .frame(width: 10, height: 10)
+                    .frame(width: 9, height: 9)
                 Text(bucket.name)
-                    .font(.system(size: 13, weight: .medium))
+                    .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(.primary)
                 Text(fmt(display))
-                    .font(.system(size: 12))
+                    .font(.system(size: 11))
                     .foregroundStyle(.secondary)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
+            .padding(.horizontal, 9)
+            .padding(.vertical, 6)
             .overlay(
                 Capsule().stroke(Color.secondary.opacity(0.25), lineWidth: 1)
             )

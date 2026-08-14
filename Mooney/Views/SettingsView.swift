@@ -19,6 +19,15 @@ struct SettingsView: View {
     @State private var backupDocument: MoonayBackupDocument?
     @State private var pendingImport: AppState?
     @State private var dataMessage: String?
+    @State private var pinEnabled = AppLockManager.isPINEnabled
+    @State private var decoyEnabled = AppLockManager.isDecoyEnabled
+    @State private var pinSheetKind: PINSheetKind?
+    @State private var showRemovePINConfirm = false
+
+    private enum PINSheetKind: Identifiable {
+        case real, decoy
+        var id: Self { self }
+    }
 
     var active:   [Bucket] { store.sortedNonArchived.filter  { $0.isActive  } }
     var inactive: [Bucket] { store.sortedNonArchived.filter  { !$0.isActive } }
@@ -27,6 +36,41 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             List {
+                if !store.isDecoyMode {
+                    Section("App Lock") {
+                        Toggle("Require PIN", isOn: Binding(
+                            get: { pinEnabled },
+                            set: { newValue in
+                                if newValue {
+                                    pinSheetKind = .real
+                                } else {
+                                    showRemovePINConfirm = true
+                                }
+                            }
+                        ))
+                        if pinEnabled {
+                            Button {
+                                pinSheetKind = .decoy
+                            } label: {
+                                HStack {
+                                    Text("Decoy PIN")
+                                    Spacer()
+                                    Text(decoyEnabled ? "Change" : "Set Up")
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            .foregroundStyle(.primary)
+                            if decoyEnabled {
+                                Button("Remove Decoy PIN", role: .destructive) {
+                                    AppLockManager.removeDecoyPIN()
+                                    decoyEnabled = false
+                                }
+                            }
+                        }
+                    }
+                    
+                }
+
                 Section("Appearance") {
                     ColorSwatchPicker(
                         selectedHex: Binding(
@@ -75,6 +119,9 @@ struct SettingsView: View {
 
                 Section {
                     NavigationLink("Notes") { NotesView() }
+                    NavigationLink("Paycheck Schedule") { PayScheduleSettingsView() }
+                    NavigationLink("Credit Cards") { CreditCardsView() }
+                    NavigationLink("Subscriptions") { SubscriptionsView() }
                 }
 
                 Section("Income Sources") {
@@ -129,6 +176,30 @@ struct SettingsView: View {
             .sheet(isPresented: $showAddBill) { BillAddView() }
             .sheet(isPresented: $showAddSource) { IncomeSourceAddView() }
             .sheet(isPresented: $showAddTransfer) { RecurringTransferAddView() }
+            .sheet(item: $pinSheetKind) { kind in
+                switch kind {
+                case .real:
+                    SetPINView(title: "Set PIN") { pin in
+                        AppLockManager.setPIN(pin)
+                        pinEnabled = true
+                    }
+                case .decoy:
+                    SetPINView(title: "Set Decoy PIN") { pin in
+                        AppLockManager.setDecoyPIN(pin)
+                        decoyEnabled = true
+                    }
+                }
+            }
+            .confirmationDialog("Remove PIN Lock?", isPresented: $showRemovePINConfirm, titleVisibility: .visible) {
+                Button("Remove PIN", role: .destructive) {
+                    AppLockManager.removePIN()
+                    pinEnabled = false
+                    decoyEnabled = false
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text(decoyEnabled ? "This also removes your decoy PIN." : "The app will open without a PIN.")
+            }
             .sheet(isPresented: $showResetConfirm) {
                 ResetDataView(resetText: $resetText) {
                     store.clearFinancialData()

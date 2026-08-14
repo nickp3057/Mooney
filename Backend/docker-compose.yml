@@ -1,0 +1,13 @@
+# For the later NAS-deployment step — not used for local Sandbox validation.
+# Only reachable at whatever address the NAS exposes on its Tailscale
+# interface; do not port-forward 4001 on your router.
+services:
+  mooney-plaid-backend:
+    build: .
+    container_name: mooney-plaid-backend
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "4001:4001"
+    volumes:
+      - ./data:/app/data

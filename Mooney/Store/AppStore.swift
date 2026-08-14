@@ -4,24 +4,80 @@ import Observation
 @Observable
 class AppStore {
     static let storageKey = "moonay_v2"
+    static let decoyStorageKey = "moonay_decoy_v1"
 
     var state: AppState
+    var isDecoyMode = false
+    var isLocked: Bool
 
     init() {
-        if let data = UserDefaults.standard.data(forKey: Self.storageKey),
+        state = Self.loadReal()
+        isLocked = AppLockManager.isPINEnabled
+        catchUpState()
+    }
+
+    private static func loadReal() -> AppState {
+        if let data = UserDefaults.standard.data(forKey: storageKey),
            let saved = try? JSONDecoder().decode(AppState.self, from: data) {
-            state = saved
-        } else {
-            state = AppState(buckets: seedBuckets, incomes: seedIncomes, transactions: seedTransactions, recurringTransfers: seedRecurringTransfers)
+            return saved
         }
-        ensureGeneralBucket()
-        runScheduledTransfers()
+        return AppState(buckets: seedBuckets, incomes: seedIncomes, transactions: seedTransactions, recurringTransfers: seedRecurringTransfers)
+    }
+
+    private static func loadOrGenerateDecoy() -> AppState {
+        if let data = UserDefaults.standard.data(forKey: decoyStorageKey),
+           let saved = try? JSONDecoder().decode(AppState.self, from: data) {
+            return saved
+        }
+        let generated = generateDecoyState()
+        if let data = try? JSONEncoder().encode(generated) {
+            UserDefaults.standard.set(data, forKey: decoyStorageKey)
+        }
+        return generated
     }
 
     private func save() {
+        let key = isDecoyMode ? Self.decoyStorageKey : Self.storageKey
         if let data = try? JSONEncoder().encode(state) {
-            UserDefaults.standard.set(data, forKey: Self.storageKey)
+            UserDefaults.standard.set(data, forKey: key)
         }
+    }
+
+    // ── App Lock ──
+
+    func lock() {
+        guard AppLockManager.isPINEnabled else { return }
+        isLocked = true
+    }
+
+    @discardableResult
+    func attemptUnlock(pin: String) -> Bool {
+        switch AppLockManager.verify(pin) {
+        case .real:
+            if isDecoyMode {
+                isDecoyMode = false
+                state = Self.loadReal()
+                catchUpState()
+            }
+            isLocked = false
+            return true
+        case .decoy:
+            if !isDecoyMode {
+                isDecoyMode = true
+                state = Self.loadOrGenerateDecoy()
+                catchUpState()
+            }
+            isLocked = false
+            return true
+        case .none:
+            return false
+        }
+    }
+
+    private func catchUpState() {
+        ensureGeneralBucket()
+        runScheduledTransfers()
+        ensureCardPayments()
     }
 
     // Data saved before the general-bucket concept existed has no bucket
@@ -199,6 +255,151 @@ class AppStore {
         if didChange { save() }
     }
 
+    // ── Pay Schedule ──
+
+    func setPaySchedule(nextPayDate: String, frequency: TransferFrequency) {
+        state.paySchedule = PaySchedule(nextPayDate: nextPayDate, frequency: frequency)
+        save()
+    }
+
+    func clearPaySchedule() {
+        state.paySchedule = nil
+        save()
+    }
+
+    // Every occurrence of the pay schedule from its anchor date through
+    // `end`, inclusive. Used both for the goal-contribution math and the
+    // Calendar view, so both stay in sync with a single source of truth.
+    func payDates(through end: Date) -> [Date] {
+        guard let schedule = state.paySchedule,
+              let start = isoDateFormatter.date(from: schedule.nextPayDate) else { return [] }
+        var dates: [Date] = []
+        var date = start
+        while date <= end {
+            dates.append(date)
+            date = schedule.frequency.nextDate(after: date)
+        }
+        return dates
+    }
+
+    // ── Credit Cards ──
+
+    var sortedCreditCards: [CreditCard] {
+        state.creditCards.sorted { $0.name < $1.name }
+    }
+
+    func addCreditCard(_ c: CreditCard) {
+        state.creditCards.append(c)
+        save()
+        ensureCardPayments()
+    }
+
+    func deleteCreditCard(id: String) {
+        state.creditCards.removeAll { $0.id == id }
+        state.cardPayments.removeAll { $0.cardId == id && !$0.isPaid }
+        save()
+    }
+
+    func updateCreditCard(_ c: CreditCard) {
+        guard let i = state.creditCards.firstIndex(where: { $0.id == c.id }) else { return }
+        state.creditCards[i] = c
+        save()
+        ensureCardPayments()
+    }
+
+    // Clamps a target day-of-month to however many days that month actually
+    // has (e.g. dueDay 30 in February lands on the 28th/29th).
+    func nextMonthlyDueDate(day: Int, onOrAfter date: Date) -> Date {
+        let cal = Calendar.current
+        func clampedDate(forMonthOf ref: Date) -> Date {
+            var comps = cal.dateComponents([.year, .month], from: ref)
+            let range = cal.range(of: .day, in: .month, for: ref) ?? (1..<29)
+            comps.day = min(day, range.count)
+            return cal.date(from: comps) ?? ref
+        }
+        let startOfDate = cal.startOfDay(for: date)
+        var candidate = clampedDate(forMonthOf: startOfDate)
+        if candidate < startOfDate {
+            let nextMonth = cal.date(byAdding: .month, value: 1, to: candidate) ?? candidate
+            candidate = clampedDate(forMonthOf: nextMonth)
+        }
+        return candidate
+    }
+
+    // Keeps exactly one unpaid CardPayment "slot" queued per active card —
+    // there's no background execution in a client-only app, so this runs at
+    // launch and whenever the app returns to the foreground (same pattern
+    // as runScheduledTransfers, but this never moves money on its own).
+    func ensureCardPayments() {
+        var didChange = false
+        for card in state.creditCards where card.isActive {
+            let hasUnpaid = state.cardPayments.contains { $0.cardId == card.id && !$0.isPaid }
+            guard !hasUnpaid else { continue }
+            let lastPaidDue = state.cardPayments
+                .filter { $0.cardId == card.id && $0.isPaid }
+                .compactMap { isoDateFormatter.date(from: $0.dueDate) }
+                .max()
+            let anchor: Date
+            if let lastPaidDue, let dayAfter = Calendar.current.date(byAdding: .day, value: 1, to: lastPaidDue) {
+                anchor = dayAfter
+            } else {
+                anchor = Date()
+            }
+            let dueDate = nextMonthlyDueDate(day: card.dueDay, onOrAfter: anchor)
+            state.cardPayments.append(CardPayment(
+                id: UUID().uuidString,
+                cardId: card.id,
+                dueDate: isoDateFormatter.string(from: dueDate)
+            ))
+            didChange = true
+        }
+        if didChange { save() }
+    }
+
+    // Logs a partial (or full) payment against the current cycle — debits it
+    // from primary savings (the general bucket) immediately, since that
+    // money actually left, but doesn't close out the cycle. Call this as
+    // many times as needed for one due date.
+    func logCardPayment(paymentId: String, amount: Double) {
+        guard let i = state.cardPayments.firstIndex(where: { $0.id == paymentId }),
+              !state.cardPayments[i].isPaid,
+              let generalId = generalBucket?.id else { return }
+        let cardId = state.cardPayments[i].cardId
+        let cardName = state.creditCards.first { $0.id == cardId }?.name ?? "Card"
+        state.cardPayments[i].amountPaid += amount
+        state.transactions.append(AppTransaction(
+            id: UUID().uuidString,
+            bucketId: generalId,
+            amount: -amount,
+            date: todayISO(),
+            note: "\(cardName) payment",
+            type: "card_payment"
+        ))
+        save()
+    }
+
+    // Explicitly closes out the current cycle and rolls the card forward to
+    // its next due date — independent of amountPaid, since you often don't
+    // know the exact statement balance up front and just want to say "done."
+    func markCardPaidOff(paymentId: String) {
+        guard let i = state.cardPayments.firstIndex(where: { $0.id == paymentId }),
+              !state.cardPayments[i].isPaid else { return }
+        state.cardPayments[i].isPaid = true
+        state.cardPayments[i].paidDate = todayISO()
+        save()
+        ensureCardPayments()
+    }
+
+    var pendingCardPayments: [(card: CreditCard, payment: CardPayment)] {
+        state.cardPayments
+            .filter { !$0.isPaid }
+            .compactMap { payment in
+                guard let card = state.creditCards.first(where: { $0.id == payment.cardId }) else { return nil }
+                return (card: card, payment: payment)
+            }
+            .sorted { $0.payment.dueDate < $1.payment.dueDate }
+    }
+
     func moveBuckets(from source: IndexSet, to destination: Int, among list: [Bucket]) {
         var ids = list.map { $0.id }
         ids.move(fromOffsets: source, toOffset: destination)
@@ -274,8 +475,15 @@ class AppStore {
               let target = isoDateFormatter.date(from: goalDate) else { return nil }
         let needed = goal - balance(for: bucket.id)
         guard needed > 0 else { return 0 }
-        let days = max(Calendar.current.dateComponents([.day], from: Date(), to: target).day ?? 0, 0)
-        let incomes = max(ceil(Double(days) / 14.0), 1)
+        // With a pay schedule set, count actual upcoming pay dates instead
+        // of guessing a biweekly cadence.
+        let incomes: Double
+        if state.paySchedule != nil {
+            incomes = Double(max(payDates(through: target).count, 1))
+        } else {
+            let days = max(Calendar.current.dateComponents([.day], from: Date(), to: target).day ?? 0, 0)
+            incomes = max(ceil(Double(days) / 14.0), 1)
+        }
         return needed / incomes
     }
 
