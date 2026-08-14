@@ -16,6 +16,7 @@ struct PayScheduleSettingsView: View {
                         Text(f.label).tag(f)
                     }
                 }
+                .pickerStyle(.menu)
             } footer: {
                 Text("Set this once and the app will use your actual upcoming pay dates to calculate how much you need per paycheck to hit a savings goal.")
             }

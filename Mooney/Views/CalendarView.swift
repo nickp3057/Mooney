@@ -1,5 +1,13 @@
 import SwiftUI
 
+enum SubscriptionSortOption: String, CaseIterable, Identifiable {
+    case nextDue = "Next Up"
+    case added = "Order Added"
+    case amount = "Amount"
+
+    var id: String { rawValue }
+}
+
 struct CalendarView: View {
     @Environment(AppStore.self) var store
     @State private var displayedMonth = Calendar.current.startOfDay(for: Date())
@@ -7,6 +15,15 @@ struct CalendarView: View {
     @State private var editingSubscription: Subscription?
     @State private var showAdd = false
     @State private var loggingPaymentId: String?
+    @AppStorage("subscriptionSortOption") private var sortOption: SubscriptionSortOption = .nextDue
+
+    private var allSubscriptionsSorted: [Subscription] {
+        switch sortOption {
+        case .nextDue: return store.state.subscriptions.sorted { $0.nextDueDate < $1.nextDueDate }
+        case .added:   return store.state.subscriptions
+        case .amount:  return store.state.subscriptions.sorted { $0.amount > $1.amount }
+        }
+    }
 
     private let cal = Calendar.current
     private let weekdaySymbols = ["S", "M", "T", "W", "T", "F", "S"]
@@ -86,14 +103,27 @@ struct CalendarView: View {
                             }
                         }
                     }
-                } else {
+                } else if store.state.subscriptions.isEmpty {
                     Section("All Subscriptions") {
-                        if store.sortedSubscriptions.isEmpty {
-                            Text("No subscriptions yet.").foregroundStyle(.secondary)
-                        } else {
-                            ForEach(store.sortedSubscriptions) { sub in
-                                subscriptionRow(sub)
+                        Text("No subscriptions yet.").foregroundStyle(.secondary)
+                    }
+                } else {
+                    Section {
+                        HStack {
+                            Text("Total / mo")
+                            Spacer()
+                            Text(fmt(store.monthlySubscriptionTotal)).foregroundStyle(.secondary)
+                        }
+                        Picker("Sort by", selection: $sortOption) {
+                            ForEach(SubscriptionSortOption.allCases) { option in
+                                Text(option.rawValue).tag(option)
                             }
+                        }
+                        .pickerStyle(.segmented)
+                    }
+                    Section("All Subscriptions") {
+                        ForEach(allSubscriptionsSorted) { sub in
+                            subscriptionRow(sub)
                         }
                     }
                 }

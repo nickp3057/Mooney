@@ -42,6 +42,7 @@ struct BucketAddView: View {
                             Text(mode.rawValue).tag(mode)
                         }
                     }
+                    .pickerStyle(.menu)
                     if allocationMode == .percent {
                         HStack {
                             Text("Percent of check"); Spacer()

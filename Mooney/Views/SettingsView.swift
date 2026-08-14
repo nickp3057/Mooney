@@ -3,14 +3,6 @@ import UniformTypeIdentifiers
 
 struct SettingsView: View {
     @Environment(AppStore.self) var store
-    @State private var editingBucket: Bucket?
-    @State private var editingBill: Bill?
-    @State private var showAddBucket    = false
-    @State private var showAddBill      = false
-    @State private var showAddSource    = false
-    @State private var editingTransfer: RecurringTransfer?
-    @State private var showAddTransfer  = false
-    @State private var showArchived     = false
     @State private var showResetConfirm = false
     @State private var resetText        = ""
     @State private var showExporter     = false
@@ -28,10 +20,6 @@ struct SettingsView: View {
         case real, decoy
         var id: Self { self }
     }
-
-    var active:   [Bucket] { store.sortedNonArchived.filter  { $0.isActive  } }
-    var inactive: [Bucket] { store.sortedNonArchived.filter  { !$0.isActive } }
-    var archived: [Bucket] { store.state.buckets.filter { $0.archived }.sorted { $0.order < $1.order } }
 
     var body: some View {
         NavigationStack {
@@ -68,7 +56,6 @@ struct SettingsView: View {
                             }
                         }
                     }
-                    
                 }
 
                 Section("Appearance") {
@@ -81,83 +68,17 @@ struct SettingsView: View {
                     )
                 }
 
-                if !active.isEmpty {
-                    Section("Active Buckets") {
-                        ForEach(active) { b in
-                            BucketSettingRow(bucket: b) { editingBucket = b }
-                        }
-                        .onMove { store.moveBuckets(from: $0, to: $1, among: active) }
-                    }
-                }
-
-                if !inactive.isEmpty {
-                    Section("Planned Buckets") {
-                        ForEach(inactive) { b in
-                            BucketSettingRow(bucket: b) { editingBucket = b }
-                        }
-                        .onMove { store.moveBuckets(from: $0, to: $1, among: inactive) }
-                    }
+                Section {
+                    NavigationLink("Buckets") { BucketsSettingsView() }
+                    NavigationLink("Bills") { BillsSettingsView() }
+                    NavigationLink("Income Sources") { IncomeSourcesSettingsView() }
+                    NavigationLink("Recurring Transfers") { RecurringTransfersSettingsView() }
                 }
 
                 Section {
-                    Button("+ New Bucket") { showAddBucket = true }
-                        .foregroundStyle(store.accentColor)
-                }
-
-                Section("Bills") {
-                    ForEach(store.sortedBills) { bill in
-                        BillSettingRow(bill: bill) { editingBill = bill }
-                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                                Button("Delete", role: .destructive) {
-                                    store.deleteBill(id: bill.id)
-                                }
-                            }
-                    }
-                    Button("+ New Bill") { showAddBill = true }
-                        .foregroundStyle(store.accentColor)
-                }
-
-                Section {
+                    NavigationLink("History") { HistoryView() }
                     NavigationLink("Notes") { NotesView() }
                     NavigationLink("Paycheck Schedule") { PayScheduleSettingsView() }
-                    NavigationLink("Credit Cards") { CreditCardsView() }
-                    NavigationLink("Subscriptions") { SubscriptionsView() }
-                }
-
-                Section("Income Sources") {
-                    ForEach(store.state.incomeSources) { source in
-                        Text(source.name)
-                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                                Button("Delete", role: .destructive) {
-                                    store.deleteIncomeSource(id: source.id)
-                                }
-                            }
-                    }
-                    Button("+ New Source") { showAddSource = true }
-                        .foregroundStyle(store.accentColor)
-                }
-
-                Section("Recurring Transfers") {
-                    ForEach(store.sortedRecurringTransfers) { transfer in
-                        RecurringTransferRow(transfer: transfer) { editingTransfer = transfer }
-                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                                Button("Delete", role: .destructive) {
-                                    store.deleteRecurringTransfer(id: transfer.id)
-                                }
-                            }
-                    }
-                    Button("+ New Recurring Transfer") { showAddTransfer = true }
-                        .foregroundStyle(store.accentColor)
-                }
-
-                if !archived.isEmpty {
-                    Section {
-                        DisclosureGroup("Archived (\(archived.count))", isExpanded: $showArchived) {
-                            ForEach(archived) { b in
-                                BucketSettingRow(bucket: b) { editingBucket = b }
-                            }
-                        }
-                    }
                 }
 
                 Section("Data") {
@@ -168,14 +89,6 @@ struct SettingsView: View {
             }
             .listStyle(.insetGrouped)
             .navigationTitle("Settings")
-            .toolbar { EditButton() }
-            .sheet(item: $editingBucket) { BucketEditView(bucket: $0) }
-            .sheet(item: $editingBill) { BillEditView(bill: $0) }
-            .sheet(item: $editingTransfer) { RecurringTransferEditView(transfer: $0) }
-            .sheet(isPresented: $showAddBucket) { BucketAddView() }
-            .sheet(isPresented: $showAddBill) { BillAddView() }
-            .sheet(isPresented: $showAddSource) { IncomeSourceAddView() }
-            .sheet(isPresented: $showAddTransfer) { RecurringTransferAddView() }
             .sheet(item: $pinSheetKind) { kind in
                 switch kind {
                 case .real:

@@ -57,6 +57,7 @@ struct AddIncomeView: View {
                                 Text(source.name).tag(String?.some(source.id))
                             }
                         }
+                        .pickerStyle(.menu)
                         HStack {
                             Text("Note")
                             Spacer()

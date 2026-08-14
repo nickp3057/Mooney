@@ -5,6 +5,7 @@ struct DashboardView: View {
     @Environment(AppStore.self) var store
     @State private var selectedBucket: Bucket?
     @State private var showBalanceOverride = false
+    @State private var loggingPaymentId: String?
     @State private var plaidBalance: PlaidBalance?
     @State private var plaidError: String?
     @State private var plaidLoading = false
@@ -169,6 +170,34 @@ struct DashboardView: View {
                     .listRowSeparator(.hidden)
                 }
 
+                if !store.pendingCardPayments.isEmpty {
+                    Section("Cards Due") {
+                        ForEach(store.pendingCardPayments, id: \.payment.id) { pending in
+                            Button {
+                                loggingPaymentId = pending.payment.id
+                            } label: {
+                                HStack(spacing: 10) {
+                                    Image(systemName: "creditcard.fill")
+                                        .foregroundStyle(store.accentColor)
+                                        .frame(width: 20)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(pending.card.name).foregroundStyle(.primary)
+                                        Text(pending.payment.amountPaid > 0
+                                             ? "Due \(fmtDueDate(pending.payment.dueDate)) · \(fmt(pending.payment.amountPaid)) paid"
+                                             : "Due \(fmtDueDate(pending.payment.dueDate))")
+                                            .font(.caption).foregroundStyle(.secondary)
+                                    }
+                                    Spacer()
+                                    Text("Log Payment")
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(store.accentColor)
+                                }
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+
                 if !store.unpaidBillGroups.isEmpty {
                     Section("Bills To Pay") {
                         ForEach(store.unpaidBillGroups) { bill in
@@ -240,6 +269,14 @@ struct DashboardView: View {
             .navigationTitle("Ledger")
             .sheet(item: $selectedBucket) { BucketDetailView(bucket: $0) }
             .sheet(isPresented: $showBalanceOverride) { BalanceOverrideView() }
+            .sheet(isPresented: Binding(
+                get: { loggingPaymentId != nil },
+                set: { if !$0 { loggingPaymentId = nil } }
+            )) {
+                if let loggingPaymentId {
+                    LogCardPaymentView(paymentId: loggingPaymentId)
+                }
+            }
         }
     }
 

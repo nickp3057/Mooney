@@ -41,11 +41,13 @@ struct RecurringTransferEditView: View {
                             Text(bucket.name).tag(String?.some(bucket.id))
                         }
                     }
+                    .pickerStyle(.menu)
                     Picker("Frequency", selection: $frequency) {
                         ForEach(TransferFrequency.allCases) { f in
                             Text(f.label).tag(f)
                         }
                     }
+                    .pickerStyle(.menu)
                     DatePicker("Starting", selection: $startDate, displayedComponents: .date)
                 }
             }

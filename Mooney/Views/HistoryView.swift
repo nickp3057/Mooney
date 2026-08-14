@@ -21,8 +21,7 @@ struct HistoryView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            List {
+        List {
                 // ── Savings tracker ──
                 if savingsChart.count >= 2 {
                     Section {
@@ -147,7 +146,6 @@ struct HistoryView: View {
             } message: {
                 Text("This removes the income and its bucket allocations. This can't be undone.")
             }
-        }
     }
 
 }

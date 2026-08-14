@@ -30,6 +30,7 @@ struct SubscriptionAddView: View {
                             Text(f.label).tag(f)
                         }
                     }
+                    .pickerStyle(.menu)
                     DatePicker("Next Due", selection: $nextDueDate, displayedComponents: .date)
                 }
             }

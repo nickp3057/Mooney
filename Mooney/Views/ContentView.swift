@@ -9,8 +9,8 @@ struct ContentView: View {
                 .tabItem { Label("Ledger", systemImage: "house") }
             AddIncomeView()
                 .tabItem { Label("Income", systemImage: "plus.circle") }
-            HistoryView()
-                .tabItem { Label("History", systemImage: "list.bullet") }
+            CreditCardsView()
+                .tabItem { Label("Cards", systemImage: "creditcard") }
             CalendarView()
                 .tabItem { Label("Subscriptions", systemImage: "calendar") }
             SettingsView()

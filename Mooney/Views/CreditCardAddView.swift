@@ -20,6 +20,7 @@ struct CreditCardAddView: View {
                             Text(ordinal(day)).tag(day)
                         }
                     }
+                    .pickerStyle(.menu)
                 } footer: {
                     Text("The day of the month this card's payment is due. In months without that day, it's due on the last day instead.")
                 }
