@@ -67,6 +67,5 @@ When adding a new "what does the user need to see right now" surface, prefer a c
 
 `MARKETING_VERSION` in `Mooney.xcodeproj/project.pbxproj` follows `1.X.Y`.
 
-- After completing a mass change (a batch of edits/features requested together in one go — not a one-line fix or a single small tweak), bump the patch version (`Y`) by 1. Update it in both build configurations (Debug and Release) in `project.pbxproj`.
+- Every time changes are committed and pushed, bump the patch version (`Y`) by 1 as part of that same commit. Update it in both build configurations (Debug and Release) in `project.pbxproj`.
 - Never touch the minor version (`X`) — the user bumps that manually when they judge it's warranted.
-- Don't bump for trivial single-file fixes; use judgment on what counts as "mass."
