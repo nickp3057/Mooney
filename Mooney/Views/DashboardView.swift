@@ -181,7 +181,7 @@ struct DashboardView: View {
                             if let plaidDiscrepancy {
                                 Text(plaidDiscrepancy.message)
                                     .font(.caption2.weight(.semibold))
-                                    .foregroundStyle(plaidDiscrepancy.isOver ? .secondary : .red)
+                                    .foregroundStyle(plaidDiscrepancy.isOver ? Color.secondary : Color.red)
                                     .padding(.top, 1)
                             }
                         }
