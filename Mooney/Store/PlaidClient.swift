@@ -20,10 +20,20 @@ enum PlaidClientError: LocalizedError {
 // app already uses for the PIN (AppLockManager, kept out of AppState).
 struct PlaidClient {
     static let backendURLDefaultsKey = "mooney_plaid_backend_url"
+    static let isConnectedDefaultsKey = "mooney_plaid_connected"
 
     static var backendURL: String? {
         get { UserDefaults.standard.string(forKey: backendURLDefaultsKey) }
         set { UserDefaults.standard.set(newValue, forKey: backendURLDefaultsKey) }
+    }
+
+    // Local-only convenience flag — the backend is the actual source of
+    // truth for whether an Item is connected (a 404 from /balance means
+    // "not connected"), but mirroring it here lets the Settings screen show
+    // Connect/Disconnect without a round trip on every render.
+    static var isConnected: Bool {
+        get { UserDefaults.standard.bool(forKey: isConnectedDefaultsKey) }
+        set { UserDefaults.standard.set(newValue, forKey: isConnectedDefaultsKey) }
     }
 
     private func baseURL() throws -> URL {

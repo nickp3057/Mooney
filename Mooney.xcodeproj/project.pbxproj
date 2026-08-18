@@ -6,6 +6,11 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		1E0E1A913034EA9B00E5A0E5 /* LinkKit in Frameworks */ = {isa = PBXBuildFile; productRef = 1E0E1A903034EA9B00E5A0E5 /* LinkKit */; };
+		1E0E1A933034EA9B00E5A0E5 /* LinkKitObjC in Frameworks */ = {isa = PBXBuildFile; productRef = 1E0E1A923034EA9B00E5A0E5 /* LinkKitObjC */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		1E2D6F0A2FB3A3CF00897938 /* Mooney.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Mooney.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -23,6 +28,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				1E0E1A913034EA9B00E5A0E5 /* LinkKit in Frameworks */,
+				1E0E1A933034EA9B00E5A0E5 /* LinkKitObjC in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -65,6 +72,8 @@
 			);
 			name = Mooney;
 			packageProductDependencies = (
+				1E0E1A903034EA9B00E5A0E5 /* LinkKit */,
+				1E0E1A923034EA9B00E5A0E5 /* LinkKitObjC */,
 			);
 			productName = Mooney;
 			productReference = 1E2D6F0A2FB3A3CF00897938 /* Mooney.app */;
@@ -95,6 +104,9 @@
 			);
 			mainGroup = 1E2D6F012FB3A3CF00897938;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				1E0E1A8F3034EA9B00E5A0E5 /* XCRemoteSwiftPackageReference "plaid-link-ios-spm" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 1E2D6F0B2FB3A3CF00897938 /* Products */;
 			projectDirPath = "";
@@ -255,6 +267,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = Mooney/Mooney.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 47543PU92M;
@@ -271,7 +284,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.3.5;
+				MARKETING_VERSION = 1.3.6;
 				PRODUCT_BUNDLE_IDENTIFIER = com.nickpearson.Mooney;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -291,6 +304,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = Mooney/Mooney.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 47543PU92M;
@@ -307,7 +321,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.3.5;
+				MARKETING_VERSION = 1.3.6;
 				PRODUCT_BUNDLE_IDENTIFIER = com.nickpearson.Mooney;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -342,6 +356,30 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		1E0E1A8F3034EA9B00E5A0E5 /* XCRemoteSwiftPackageReference "plaid-link-ios-spm" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/plaid/plaid-link-ios-spm.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 7.1.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		1E0E1A903034EA9B00E5A0E5 /* LinkKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 1E0E1A8F3034EA9B00E5A0E5 /* XCRemoteSwiftPackageReference "plaid-link-ios-spm" */;
+			productName = LinkKit;
+		};
+		1E0E1A923034EA9B00E5A0E5 /* LinkKitObjC */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 1E0E1A8F3034EA9B00E5A0E5 /* XCRemoteSwiftPackageReference "plaid-link-ios-spm" */;
+			productName = LinkKitObjC;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 1E2D6F022FB3A3CF00897938 /* Project object */;
 }

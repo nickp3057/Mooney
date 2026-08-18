@@ -10,11 +10,31 @@ struct DashboardView: View {
     @State private var plaidBalance: PlaidBalance?
     @State private var plaidError: String?
     @State private var plaidLoading = false
+    // @AppStorage instead of reading PlaidClient.backendURL directly — the
+    // latter is a plain UserDefaults read SwiftUI can't observe, so this
+    // view would never notice the Bank Connection screen setting it until
+    // something else happened to force a re-render.
+    @AppStorage(PlaidClient.backendURLDefaultsKey) private var plaidBackendURL: String = ""
 
     private let plaidClient = PlaidClient()
 
     private var plaidConfigured: Bool {
-        !(PlaidClient.backendURL ?? "").isEmpty
+        !plaidBackendURL.isEmpty
+    }
+
+    private var plaidDiscrepancy: (message: String, isOver: Bool)? {
+        guard let current = plaidBalance?.current else { return nil }
+        let diff = current - store.totalSavings
+        guard abs(diff) >= 0.01 else { return nil }
+        return diff > 0
+            ? ("Unallocated balance: \(fmt(diff))", true)
+            : ("Yo you broke by \(fmt(abs(diff)))", false)
+    }
+
+    // Easter egg: "69" showing up anywhere in the balance is a classic meme trigger.
+    private var balanceHasNiceEasterEgg: Bool {
+        guard let current = plaidBalance?.current else { return false }
+        return fmt(current).filter(\.isNumber).contains("69")
     }
 
     private struct LedgerGroup: Identifiable {
@@ -123,6 +143,10 @@ struct DashboardView: View {
                                     Text(fmt(plaidBalance.current ?? 0))
                                         .font(.subheadline.weight(.semibold))
                                         .monospacedDigit()
+                                    if balanceHasNiceEasterEgg {
+                                        Text("😏")
+                                            .font(.caption2)
+                                    }
                                 } else if let plaidError {
                                     Text(plaidError)
                                         .font(.caption2)
@@ -147,6 +171,19 @@ struct DashboardView: View {
                                 }
                             }
                             .padding(.top, 2)
+
+                            // Reconciles the live bank balance against what
+                            // the buckets/bills ledger thinks exists — these
+                            // can legitimately diverge (unspent cash sitting
+                            // in checking that isn't assigned to a bucket
+                            // yet), but a negative gap means the ledger
+                            // thinks there's money that isn't really there.
+                            if let plaidDiscrepancy {
+                                Text(plaidDiscrepancy.message)
+                                    .font(.caption2.weight(.semibold))
+                                    .foregroundStyle(plaidDiscrepancy.isOver ? .secondary : .red)
+                                    .padding(.top, 1)
+                            }
                         }
                     }
                     .padding(.vertical, 4)

@@ -100,6 +100,12 @@ struct SettingsView: View {
                     NavigationLink("Paycheck Schedule") { PayScheduleSettingsView() }
                 }
 
+                if !store.isDecoyMode {
+                    Section("Bank Connection") {
+                        NavigationLink("Connect Bank Account") { BankConnectionSettingsView() }
+                    }
+                }
+
                 Section("Data") {
                     Button("Export Backup") { startExport() }
                     Button("Import Backup") { showImporter = true }

@@ -32,7 +32,10 @@ app.post('/link_token', async (req, res) => {
       language: 'en',
       country_codes: [CountryCode.Us],
       user: { client_user_id: CLIENT_USER_ID },
-      products: [Products.Balance],
+      // Balance isn't a standalone product — it's included automatically
+      // with a core product. Auth is the standard choice for balance-only
+      // apps like this one (cheapest core product, no extra data pulled).
+      products: [Products.Auth],
       redirect_uri: process.env.PLAID_REDIRECT_URI,
     });
     res.json({ link_token: response.data.link_token });
