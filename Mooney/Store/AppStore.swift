@@ -91,6 +91,7 @@ class AppStore {
         ensureGeneralBucket()
         runScheduledTransfers()
         ensureCardPayments()
+        PaydayNotifications.reschedule(from: state.paySchedule)
     }
 
     // Data saved before the general-bucket concept existed has no bucket
@@ -288,11 +289,13 @@ class AppStore {
     func setPaySchedule(nextPayDate: String, frequency: TransferFrequency) {
         state.paySchedule = PaySchedule(nextPayDate: nextPayDate, frequency: frequency)
         save()
+        PaydayNotifications.reschedule(from: state.paySchedule)
     }
 
     func clearPaySchedule() {
         state.paySchedule = nil
         save()
+        PaydayNotifications.cancelAll()
     }
 
     // Every occurrence of the pay schedule from its anchor date through

@@ -14,6 +14,7 @@ struct SettingsView: View {
     @State private var pinEnabled = AppLockManager.isPINEnabled
     @State private var decoyEnabled = AppLockManager.isDecoyEnabled
     @State private var faceIDEnabled = BiometricAuth.isEnabled
+    @State private var paydayRemindersEnabled = PaydayNotifications.isEnabled
     @State private var pinSheetKind: PINSheetKind?
     @State private var showRemovePINConfirm = false
     @State private var editingColorTab: AppTab?
@@ -66,6 +67,23 @@ struct SettingsView: View {
                                     }
                                 ))
                             }
+                        }
+                    }
+                }
+
+                if !store.isDecoyMode {
+                    Section("Notifications") {
+                        Toggle("Payday Reminders", isOn: Binding(
+                            get: { paydayRemindersEnabled },
+                            set: { newValue in
+                                PaydayNotifications.setEnabled(newValue, schedule: store.state.paySchedule) { granted in
+                                    paydayRemindersEnabled = granted
+                                }
+                            }
+                        ))
+                        if paydayRemindersEnabled && store.state.paySchedule == nil {
+                            Text("Set a pay schedule to start getting reminders.")
+                                .font(.caption).foregroundStyle(.secondary)
                         }
                     }
                 }

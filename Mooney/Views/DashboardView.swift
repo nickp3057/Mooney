@@ -6,6 +6,8 @@ struct DashboardView: View {
     @Environment(\.openURL) private var openURL
     @State private var selectedBucket: Bucket?
     @State private var showBalanceOverride = false
+    @State private var showSyncConfirm = false
+    @State private var showAdjustBuckets = false
     @State private var loggingPaymentId: String?
     @State private var plaidBalance: PlaidBalance?
     @State private var plaidError: String?
@@ -184,6 +186,17 @@ struct DashboardView: View {
                                     .foregroundStyle(plaidDiscrepancy.isOver ? Color.secondary : Color.red)
                                     .padding(.top, 1)
                             }
+
+                            if plaidBalance?.current != nil {
+                                HStack(spacing: 14) {
+                                    Button("Update to MACU Balance") { showSyncConfirm = true }
+                                    Button("Adjust Buckets") { showAdjustBuckets = true }
+                                }
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(accentColor)
+                                .buttonStyle(.plain)
+                                .padding(.top, 4)
+                            }
                         }
                     }
                     .padding(.vertical, 4)
@@ -302,6 +315,25 @@ struct DashboardView: View {
             .navigationBarTitleDisplayMode(.inline)
             .sheet(item: $selectedBucket) { BucketDetailView(bucket: $0) }
             .sheet(isPresented: $showBalanceOverride) { BalanceOverrideView() }
+            .sheet(isPresented: $showAdjustBuckets) {
+                AdjustBucketsView(target: plaidBalance?.current ?? store.totalSavings)
+            }
+            .confirmationDialog(
+                "Update to MACU Balance?",
+                isPresented: $showSyncConfirm,
+                titleVisibility: .visible
+            ) {
+                Button("Update") {
+                    if let current = plaidBalance?.current {
+                        store.overrideTotalSavings(to: current, note: "Synced to MACU balance")
+                    }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                if let current = plaidBalance?.current {
+                    Text("Sets your savings total to \(fmt(current)) by posting the difference as an adjustment on your general bucket.")
+                }
+            }
             .sheet(isPresented: Binding(
                 get: { loggingPaymentId != nil },
                 set: { if !$0 { loggingPaymentId = nil } }
