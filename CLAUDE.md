@@ -65,7 +65,10 @@ When adding a new "what does the user need to see right now" surface, prefer a c
 
 ## Versioning
 
-`MARKETING_VERSION` in `Mooney.xcodeproj/project.pbxproj` follows `1.X.Y`.
+`MARKETING_VERSION` in `Mooney.xcodeproj/project.pbxproj` follows `X.Y.Z`, each digit a size/pride tier for the change being committed:
 
-- Every time changes are committed and pushed, bump the patch version (`Y`) by 1 as part of that same commit. Update it in both build configurations (Debug and Release) in `project.pbxproj`.
-- Never touch the minor version (`X`) — the user bumps that manually when they judge it's warranted.
+- `X` (major) — big, proud changes. Never bump this without the user explicitly saying so.
+- `Y` (minor) — decent-sized, non-embarrassing changes (a real feature, a meaningful multi-file change).
+- `Z` (patch) — small or embarrassing changes (a one-line fix, a typo, a config tweak).
+
+Every time changes are committed, bump exactly one digit by 1 in the same commit, judging `Y` vs `Z` by the size of the change per the definitions above (`Z` is the default for anything not clearly a real feature). Bumping `X` requires the user to say so explicitly — don't infer it from "this feels big." Update the chosen digit in both build configurations (Debug and Release) in `project.pbxproj`. Bumping a digit resets every digit to its right to 0 (e.g. from `1.4.9`: a major bump → `2.0.0`; a minor bump → `1.5.0`).
