@@ -8,6 +8,7 @@ struct LockView: View {
     @State private var digits = ""
     @State private var shake = false
     @State private var showError = false
+    @State private var didAttemptBiometrics = false
 
     private let maxDigits = 6
     private let minDigits = 4
@@ -41,6 +42,17 @@ struct LockView: View {
                     .foregroundStyle(.red)
             }
 
+            if BiometricAuth.isEnabled && BiometricAuth.isAvailable {
+                Button {
+                    attemptBiometrics()
+                } label: {
+                    Label("Use Face ID", systemImage: "faceid")
+                        .font(.subheadline.weight(.semibold))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+            }
+
             Spacer()
 
             keypad
@@ -48,6 +60,17 @@ struct LockView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(.background)
+        .task {
+            guard !didAttemptBiometrics, BiometricAuth.isEnabled else { return }
+            attemptBiometrics()
+        }
+    }
+
+    private func attemptBiometrics() {
+        didAttemptBiometrics = true
+        BiometricAuth.attempt { success in
+            if success { store.unlockWithBiometrics() }
+        }
     }
 
     private var keypad: some View {

@@ -33,5 +33,6 @@ struct BillSettingRow: View {
                 .clipShape(RoundedRectangle(cornerRadius: 8))
                 .buttonStyle(.plain)
         }
+        .bubbleCardRow()
     }
 }

@@ -19,12 +19,23 @@ struct CalendarView: View {
 
     private var accentColor: Color { store.accentColor(for: .subscriptions) }
 
-    private var allSubscriptionsSorted: [Subscription] {
+    private func sortedSubset(_ subs: [Subscription]) -> [Subscription] {
         switch sortOption {
-        case .nextDue: return store.state.subscriptions.sorted { $0.nextDueDate < $1.nextDueDate }
-        case .added:   return store.state.subscriptions
-        case .amount:  return store.state.subscriptions.sorted { $0.amount > $1.amount }
+        case .nextDue:
+            return subs.sorted { ($0.upcomingDueDate() ?? .distantFuture) < ($1.upcomingDueDate() ?? .distantFuture) }
+        case .added:
+            return subs
+        case .amount:
+            return subs.sorted { $0.amount > $1.amount }
         }
+    }
+
+    private var monthlySubscriptionsSorted: [Subscription] {
+        sortedSubset(store.state.subscriptions.filter { $0.cadence != .yearly })
+    }
+
+    private var yearlySubscriptionsSorted: [Subscription] {
+        sortedSubset(store.state.subscriptions.filter { $0.cadence == .yearly })
     }
 
     private let cal = Calendar.current
@@ -95,7 +106,9 @@ struct CalendarView: View {
                         .id(displayedMonth)
                     }
                     .padding(.vertical, 4)
+                    .bubbleCard()
                 }
+                .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
 
                 if let selectedDate {
@@ -114,21 +127,35 @@ struct CalendarView: View {
                     }
                 } else {
                     Section {
-                        HStack {
-                            Text("Total / mo")
-                            Spacer()
-                            Text(fmt(store.monthlySubscriptionTotal)).foregroundStyle(.secondary)
+                        VStack(spacing: 12) {
+                            HStack {
+                                Text("Total / mo")
+                                Spacer()
+                                Text(fmt(store.monthlySubscriptionTotal)).foregroundStyle(.secondary)
+                            }
+                            Picker("Sort by", selection: $sortOption) {
+                                ForEach(SubscriptionSortOption.allCases) { option in
+                                    Text(option.rawValue).tag(option)
+                                }
+                            }
+                            .pickerStyle(.segmented)
                         }
-                        Picker("Sort by", selection: $sortOption) {
-                            ForEach(SubscriptionSortOption.allCases) { option in
-                                Text(option.rawValue).tag(option)
+                        .bubbleCard()
+                    }
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+                    if !monthlySubscriptionsSorted.isEmpty {
+                        Section("Monthly") {
+                            ForEach(monthlySubscriptionsSorted) { sub in
+                                subscriptionRow(sub)
                             }
                         }
-                        .pickerStyle(.segmented)
                     }
-                    Section("All Subscriptions") {
-                        ForEach(allSubscriptionsSorted) { sub in
-                            subscriptionRow(sub)
+                    if !yearlySubscriptionsSorted.isEmpty {
+                        Section("Yearly") {
+                            ForEach(yearlySubscriptionsSorted) { sub in
+                                subscriptionRow(sub)
+                            }
                         }
                     }
                 }
@@ -216,13 +243,23 @@ struct CalendarView: View {
         }
     }
 
+    private func iconName(for kind: CalendarEvent.Kind) -> String {
+        switch kind {
+        case .subscription: return "arrow.clockwise.circle.fill"
+        case .cardPayment:  return "creditcard.fill"
+        case .paycheck:     return "dollarsign.circle.fill"
+        }
+    }
+
     @ViewBuilder
     private func eventRow(_ event: CalendarEvent) -> some View {
         Button {
             handleTap(event)
         } label: {
             HStack(spacing: 10) {
-                Circle().fill(Color(hex: event.colorHex)).frame(width: 10, height: 10)
+                Image(systemName: iconName(for: event.kind))
+                    .foregroundStyle(Color(hex: event.colorHex))
+                    .frame(width: 22, height: 22)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(event.title).foregroundStyle(.primary)
                     Text(event.subtitle).font(.caption).foregroundStyle(.secondary)
@@ -231,25 +268,44 @@ struct CalendarView: View {
             }
         }
         .buttonStyle(.plain)
+        .bubbleCardRow()
     }
 
     @ViewBuilder
     private func subscriptionRow(_ sub: Subscription) -> some View {
+        let cardName = sub.creditCardId.flatMap { id in store.state.creditCards.first { $0.id == id }?.name }
+        let dueISO = sub.upcomingDueDate().map { isoDateFormatter.string(from: $0) } ?? sub.nextDueDate
         Button { editingSubscription = sub } label: {
             HStack(spacing: 12) {
                 Image(systemName: "arrow.clockwise.circle.fill")
                     .foregroundStyle(accentColor)
                     .frame(width: 26, height: 26)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(sub.name).foregroundStyle(.primary)
-                    Text("\(sub.cadence.label) · due \(fmtDueDate(sub.nextDueDate))")
+                    HStack(spacing: 6) {
+                        Text(sub.name).font(.headline).foregroundStyle(.primary)
+                        if sub.status != .active {
+                            Text(sub.status.label)
+                                .font(.caption2.weight(.semibold))
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color(.systemGray5))
+                                .clipShape(Capsule())
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    Text("\(sub.cadence.label) · due \(fmtDueDate(dueISO))\(cardName.map { " · \($0)" } ?? "")")
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
-                Text(fmt(sub.amount)).foregroundStyle(.secondary)
+                Text(fmt(sub.amount))
+                    .font(.title3.weight(.semibold))
+                    .monospacedDigit()
+                    .foregroundStyle(.primary)
             }
+            .opacity(sub.status == .active ? 1 : 0.5)
         }
         .buttonStyle(.plain)
+        .bubbleCardRow()
     }
 
     private func handleTap(_ event: CalendarEvent) {

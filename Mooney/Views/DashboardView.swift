@@ -192,7 +192,9 @@ struct DashboardView: View {
                             await refreshPlaidBalance()
                         }
                     }
+                    .bubbleCard()
                 }
+                .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
 
                 // ── Bucket quick access ── Spending buckets (e.g. a
@@ -212,7 +214,9 @@ struct DashboardView: View {
                         }
                         .padding(.top, 2)
                         .padding(.bottom, 4)
+                        .bubbleCard()
                     }
+                    .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
                 }
 
@@ -250,6 +254,7 @@ struct DashboardView: View {
                                 Text(fmt(bill.requiredAmount))
                                     .fontWeight(.semibold)
                             }
+                            .bubbleCardRow()
                         }
                     }
                 }
@@ -281,6 +286,7 @@ struct DashboardView: View {
                                     selectedBucket = bucket
                                 }
                             }
+                            .bubbleCardRow()
                         }
                     }
                 }
@@ -371,6 +377,7 @@ struct DashboardView: View {
             }
         }
         .padding(.vertical, 2)
+        .bubbleCardRow()
     }
 
     private func openBankApp(_ app: BankApp) {

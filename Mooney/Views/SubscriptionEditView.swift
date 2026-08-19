@@ -9,6 +9,8 @@ struct SubscriptionEditView: View {
     @State private var amountStr: String
     @State private var cadence: TransferFrequency
     @State private var nextDueDate: Date
+    @State private var creditCardId: String?
+    @State private var status: SubscriptionStatus
     @State private var showDelete = false
 
     init(subscription: Subscription) {
@@ -17,6 +19,8 @@ struct SubscriptionEditView: View {
         _amountStr = State(initialValue: String(format: "%.2f", subscription.amount))
         _cadence = State(initialValue: subscription.cadence)
         _nextDueDate = State(initialValue: isoDateFormatter.date(from: subscription.nextDueDate) ?? Date())
+        _creditCardId = State(initialValue: subscription.creditCardId)
+        _status = State(initialValue: subscription.status)
     }
 
     var body: some View {
@@ -42,6 +46,19 @@ struct SubscriptionEditView: View {
                     }
                     .pickerStyle(.menu)
                     DatePicker("Next Due", selection: $nextDueDate, displayedComponents: .date)
+                    Picker("Card Charged", selection: $creditCardId) {
+                        Text("None").tag(String?.none)
+                        ForEach(store.sortedCreditCards) { card in
+                            Text(card.name).tag(String?.some(card.id))
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    Picker("Status", selection: $status) {
+                        ForEach(SubscriptionStatus.allCases) { s in
+                            Text(s.label).tag(s)
+                        }
+                    }
+                    .pickerStyle(.menu)
                 }
                 Section {
                     Button("Delete Subscription", role: .destructive) { showDelete = true }
@@ -60,7 +77,9 @@ struct SubscriptionEditView: View {
                             name: trimmed,
                             amount: amount,
                             cadence: cadence,
-                            nextDueDate: isoDateFormatter.string(from: nextDueDate)
+                            nextDueDate: isoDateFormatter.string(from: nextDueDate),
+                            creditCardId: creditCardId,
+                            status: status
                         ))
                         dismiss()
                     }

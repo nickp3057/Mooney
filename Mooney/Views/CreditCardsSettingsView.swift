@@ -29,6 +29,7 @@ struct CreditCardsSettingsView: View {
                             store.deleteCreditCard(id: card.id)
                         }
                     }
+                    .bubbleCardRow()
                 }
                 Button("+ New Credit Card") { showAdd = true }
                     .foregroundStyle(accentColor)

@@ -44,5 +44,6 @@ struct BucketSettingRow: View {
                     .buttonStyle(.plain)
             }
         }
+        .bubbleCardRow()
     }
 }

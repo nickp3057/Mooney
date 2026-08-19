@@ -8,6 +8,7 @@ struct SubscriptionAddView: View {
     @State private var amountStr = ""
     @State private var cadence: TransferFrequency = .monthly
     @State private var nextDueDate = Date()
+    @State private var creditCardId: String?
 
     var body: some View {
         NavigationStack {
@@ -32,6 +33,13 @@ struct SubscriptionAddView: View {
                     }
                     .pickerStyle(.menu)
                     DatePicker("Next Due", selection: $nextDueDate, displayedComponents: .date)
+                    Picker("Card Charged", selection: $creditCardId) {
+                        Text("None").tag(String?.none)
+                        ForEach(store.sortedCreditCards) { card in
+                            Text(card.name).tag(String?.some(card.id))
+                        }
+                    }
+                    .pickerStyle(.menu)
                 }
             }
             .navigationTitle("New Subscription")
@@ -47,7 +55,8 @@ struct SubscriptionAddView: View {
                             name: trimmed,
                             amount: amount,
                             cadence: cadence,
-                            nextDueDate: isoDateFormatter.string(from: nextDueDate)
+                            nextDueDate: isoDateFormatter.string(from: nextDueDate),
+                            creditCardId: creditCardId
                         ))
                         dismiss()
                     }

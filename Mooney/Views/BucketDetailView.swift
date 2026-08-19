@@ -140,7 +140,10 @@ private struct BucketDetailContent: View {
                 }
             }
             .padding(.vertical, 4)
+            .bubbleCard()
         }
+        .listRowBackground(Color.clear)
+        .listRowSeparator(.hidden)
     }
 
     @ViewBuilder
@@ -149,40 +152,48 @@ private struct BucketDetailContent: View {
             Section {
                 Text("This is your spending account. Allocations are logged each income — no need to track individual purchases here.")
                     .font(.callout).foregroundStyle(.secondary)
+                    .bubbleCard()
             }
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
         } else {
             Section {
-                if !showSpendForm {
-                    HStack(spacing: 10) {
-                        Button("Record Spending") { spendIsDeposit = false; showSpendForm = true }
-                            .foregroundStyle(bucket.color)
-                        Button("Record Deposit") { spendIsDeposit = true; showSpendForm = true }
-                            .foregroundStyle(bucket.color)
-                    }
-                } else {
-                    VStack(spacing: 10) {
-                        Picker("Type", selection: $spendIsDeposit) {
-                            Text("Spending").tag(false)
-                            Text("Deposit").tag(true)
-                        }
-                        .pickerStyle(.segmented)
-                        HStack {
-                            Text("$").foregroundStyle(.secondary)
-                            TextField("0.00", text: $spendAmt).keyboardType(.decimalPad)
-                            Divider()
-                            TextField("Note", text: $spendNote)
-                        }
+                Group {
+                    if !showSpendForm {
                         HStack(spacing: 10) {
-                            Button("Save") { saveSpend() }
-                                .buttonStyle(.borderedProminent).tint(bucket.color)
-                            Button("Cancel") {
-                                showSpendForm = false; spendAmt = ""; spendNote = ""
+                            Button("Record Spending") { spendIsDeposit = false; showSpendForm = true }
+                                .foregroundStyle(bucket.color)
+                            Button("Record Deposit") { spendIsDeposit = true; showSpendForm = true }
+                                .foregroundStyle(bucket.color)
+                        }
+                    } else {
+                        VStack(spacing: 10) {
+                            Picker("Type", selection: $spendIsDeposit) {
+                                Text("Spending").tag(false)
+                                Text("Deposit").tag(true)
                             }
-                            .buttonStyle(.bordered)
+                            .pickerStyle(.segmented)
+                            HStack {
+                                Text("$").foregroundStyle(.secondary)
+                                TextField("0.00", text: $spendAmt).keyboardType(.decimalPad)
+                                Divider()
+                                TextField("Note", text: $spendNote)
+                            }
+                            HStack(spacing: 10) {
+                                Button("Save") { saveSpend() }
+                                    .buttonStyle(.borderedProminent).tint(bucket.color)
+                                Button("Cancel") {
+                                    showSpendForm = false; spendAmt = ""; spendNote = ""
+                                }
+                                .buttonStyle(.bordered)
+                            }
                         }
                     }
                 }
+                .bubbleCard()
             }
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
         }
     }
 
@@ -199,7 +210,10 @@ private struct BucketDetailContent: View {
                 .chartXAxis(.hidden)
                 .chartYAxis(.hidden)
                 .frame(height: 64)
+                .bubbleCard()
             }
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
         }
     }
 
@@ -229,6 +243,7 @@ private struct BucketDetailContent: View {
                             }
                         }
                     }
+                    .bubbleCardRow()
                 }
             }
         }

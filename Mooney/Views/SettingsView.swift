@@ -13,6 +13,7 @@ struct SettingsView: View {
     @State private var dataMessage: String?
     @State private var pinEnabled = AppLockManager.isPINEnabled
     @State private var decoyEnabled = AppLockManager.isDecoyEnabled
+    @State private var faceIDEnabled = BiometricAuth.isEnabled
     @State private var pinSheetKind: PINSheetKind?
     @State private var showRemovePINConfirm = false
     @State private var editingColorTab: AppTab?
@@ -55,6 +56,15 @@ struct SettingsView: View {
                                     AppLockManager.removeDecoyPIN()
                                     decoyEnabled = false
                                 }
+                            }
+                            if BiometricAuth.isAvailable {
+                                Toggle("Unlock with Face ID", isOn: Binding(
+                                    get: { faceIDEnabled },
+                                    set: { newValue in
+                                        faceIDEnabled = newValue
+                                        BiometricAuth.isEnabled = newValue
+                                    }
+                                ))
                             }
                         }
                     }

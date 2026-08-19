@@ -7,5 +7,7 @@
 		<key>NSAllowsArbitraryLoads</key>
 		<true/>
 	</dict>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Mooney uses Face ID to unlock the app.</string>
 </dict>
 </plist>

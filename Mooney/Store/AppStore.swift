@@ -74,6 +74,19 @@ class AppStore {
         }
     }
 
+    // Face ID/Touch ID can't distinguish which enrolled face unlocked the
+    // device, so a biometric match always resolves to the real dataset —
+    // mirrors the .real branch of attemptUnlock(pin:) above. Decoy mode
+    // stays reachable only by typing the decoy PIN.
+    func unlockWithBiometrics() {
+        if isDecoyMode {
+            isDecoyMode = false
+            state = Self.loadReal()
+            catchUpState()
+        }
+        isLocked = false
+    }
+
     private func catchUpState() {
         ensureGeneralBucket()
         runScheduledTransfers()
@@ -594,14 +607,11 @@ class AppStore {
     // ── Subscriptions ──
     // Visibility only — these never create transactions or touch a bucket.
 
-    var sortedSubscriptions: [Subscription] {
-        state.subscriptions.sorted { $0.nextDueDate < $1.nextDueDate }
-    }
-
     // Yearly subscriptions are excluded entirely (not prorated) — this is a
-    // "what recurs every month" total, not an amortized annual cost.
+    // "what recurs every month" total, not an amortized annual cost. Paused/
+    // canceled subscriptions don't count toward it either.
     var monthlySubscriptionTotal: Double {
-        state.subscriptions.reduce(0) { total, sub in
+        state.subscriptions.filter { $0.status == .active }.reduce(0) { total, sub in
             switch sub.cadence {
             case .weekly:   return total + sub.amount * 52 / 12
             case .biweekly: return total + sub.amount * 26 / 12

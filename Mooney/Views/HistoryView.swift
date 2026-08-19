@@ -26,6 +26,7 @@ struct HistoryView: View {
                 // ── Savings tracker ──
                 if savingsChart.count >= 2 {
                     Section {
+                        VStack(spacing: 12) {
                         Picker("Range", selection: $savingsRange) {
                             ForEach(SavingsRange.allCases) { range in
                                 Text(range.rawValue).tag(range)
@@ -73,7 +74,11 @@ struct HistoryView: View {
                                 .font(.subheadline.weight(.semibold))
                                 .foregroundStyle(accentColor)
                         }
+                        }
+                        .bubbleCard()
                     }
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
                 }
 
                 // ── Income list ──
@@ -121,6 +126,7 @@ struct HistoryView: View {
                             Button("Edit Income") { editingIncome = p }
                             Button("Delete Income", role: .destructive) { incomePendingDelete = p }
                         }
+                        .bubbleCardRow()
                     }
                 }
             }

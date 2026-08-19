@@ -15,6 +15,7 @@ struct IncomeSourcesSettingsView: View {
                                 store.deleteIncomeSource(id: source.id)
                             }
                         }
+                        .bubbleCardRow()
                 }
                 Button("+ New Source") { showAddSource = true }
                     .foregroundStyle(accentColor)

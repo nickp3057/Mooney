@@ -30,7 +30,7 @@ extension AppStore {
         let start = interval.start, end = interval.end
         var events: [CalendarEvent] = []
 
-        for sub in state.subscriptions {
+        for sub in state.subscriptions where sub.status == .active {
             guard let anchor = isoDateFormatter.date(from: sub.nextDueDate) else { continue }
             for occurrence in projectOccurrences(anchor: anchor, frequency: sub.cadence, start: start, end: end) {
                 events.append(CalendarEvent(
