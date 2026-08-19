@@ -65,12 +65,17 @@ app.get('/balance', async (req, res) => {
   if (!item) {
     return res.status(404).json({ error: 'No bank account connected yet' });
   }
+  // Optional override so a caller (e.g. the widget) can ask for a different
+  // account than the one originally chosen at connect time — Plaid allows
+  // querying any account under the same linked Item, not just the one
+  // account_id captured during exchange_public_token.
+  const accountId = req.query.account_id || item.accountId;
   try {
     const response = await plaidClient.accountsBalanceGet({
       access_token: item.accessToken,
-      options: { account_ids: [item.accountId] },
+      options: { account_ids: [accountId] },
     });
-    const account = response.data.accounts.find(a => a.account_id === item.accountId);
+    const account = response.data.accounts.find(a => a.account_id === accountId);
     if (!account) {
       return res.status(404).json({ error: 'Connected account not found — it may have been closed or the connection may need to be re-linked' });
     }

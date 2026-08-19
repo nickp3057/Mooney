@@ -1,5 +1,6 @@
 import SwiftUI
 import Charts
+import WidgetKit
 
 struct DashboardView: View {
     @Environment(AppStore.self) var store
@@ -355,6 +356,20 @@ struct DashboardView: View {
         } catch {
             plaidError = error.localizedDescription
         }
+        await refreshWidgetBalance()
+    }
+
+    // Separate from the Dashboard's own balance fetch above — the widget can
+    // track a different account (PlaidClient.widgetAccountId), so this may
+    // be a second network call. Failures here are silent: the widget just
+    // keeps showing its last-known snapshot rather than surfacing an error
+    // on the Dashboard for a background sync the user didn't ask to watch.
+    private func refreshWidgetBalance() async {
+        guard let widgetAccountId = PlaidClient.widgetAccountId else { return }
+        guard let balance = try? await plaidClient.fetchBalance(accountId: widgetAccountId),
+              let current = balance.current else { return }
+        WidgetBalanceStore.write(WidgetBalanceSnapshot(accountName: balance.accountName, balance: current, asOf: balance.asOf))
+        WidgetCenter.shared.reloadTimelines(ofKind: "MooneyWidget")
     }
 
     @ViewBuilder

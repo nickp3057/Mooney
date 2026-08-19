@@ -66,6 +66,12 @@ class AppStore {
                 isDecoyMode = true
                 state = Self.loadOrGenerateDecoy()
                 catchUpState()
+                // A lock screen widget is visible without unlocking the
+                // phone at all, so it's outside the PIN/decoy boundary —
+                // stop it from showing the real balance for the rest of
+                // this duress session rather than letting a stale cached
+                // snapshot sit there.
+                WidgetBalanceStore.clear()
             }
             isLocked = false
             return true

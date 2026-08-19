@@ -15,6 +15,8 @@ struct BankConnectionSettingsView: View {
     @State private var showDisconnectConfirm = false
     @State private var pendingPublicToken: String?
     @State private var pendingAccounts: [Account] = []
+    @State private var cachedAccounts = PlaidClient.cachedAccounts
+    @State private var widgetAccountId = PlaidClient.widgetAccountId
 
     private let plaidClient = PlaidClient()
 
@@ -56,6 +58,29 @@ struct BankConnectionSettingsView: View {
                     Text(errorMessage)
                         .font(.footnote)
                         .foregroundStyle(.secondary)
+                }
+            }
+
+            if isConnected && !cachedAccounts.isEmpty {
+                Section {
+                    Picker("Widget Account", selection: Binding(
+                        get: { widgetAccountId },
+                        set: { newValue in
+                            widgetAccountId = newValue
+                            PlaidClient.widgetAccountId = newValue
+                        }
+                    )) {
+                        Text("None").tag(String?.none)
+                        ForEach(cachedAccounts) { account in
+                            Text(account.mask.map { "\(account.name) ••••\($0)" } ?? account.name)
+                                .tag(String?.some(account.id))
+                        }
+                    }
+                    .pickerStyle(.menu)
+                } header: {
+                    Text("Lock Screen Widget")
+                } footer: {
+                    Text("Which connected account the lock screen widget shows — can be different from the balance shown on the Dashboard.")
                 }
             }
         }
@@ -105,6 +130,9 @@ struct BankConnectionSettingsView: View {
             onSuccess: { success in
                 isPresentingLink = false
                 let accounts = success.metadata.accounts
+                let infos = accounts.map { PlaidAccountInfo(id: $0.id, name: $0.name, mask: $0.mask) }
+                PlaidClient.cachedAccounts = infos
+                cachedAccounts = infos
                 guard let only = accounts.first else {
                     errorMessage = "Link didn't return an account to connect."
                     return
@@ -190,6 +218,11 @@ struct BankConnectionSettingsView: View {
             }
             PlaidClient.isConnected = false
             isConnected = false
+            PlaidClient.cachedAccounts = []
+            cachedAccounts = []
+            PlaidClient.widgetAccountId = nil
+            widgetAccountId = nil
+            WidgetBalanceStore.clear()
             isWorking = false
         }
     }

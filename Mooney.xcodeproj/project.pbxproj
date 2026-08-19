@@ -9,10 +9,41 @@
 /* Begin PBXBuildFile section */
 		1E0E1A913034EA9B00E5A0E5 /* LinkKit in Frameworks */ = {isa = PBXBuildFile; productRef = 1E0E1A903034EA9B00E5A0E5 /* LinkKit */; };
 		1E0E1A933034EA9B00E5A0E5 /* LinkKitObjC in Frameworks */ = {isa = PBXBuildFile; productRef = 1E0E1A923034EA9B00E5A0E5 /* LinkKitObjC */; };
+		1EFF4E60303648E600BDE11A /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1EFF4E5F303648E500BDE11A /* WidgetKit.framework */; };
+		1EFF4E62303648E600BDE11A /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1EFF4E61303648E600BDE11A /* SwiftUI.framework */; };
+		1EFF4E71303648E700BDE11A /* MooneyWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 1EFF4E5D303648E500BDE11A /* MooneyWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		1EFF4E6F303648E700BDE11A /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 1E2D6F022FB3A3CF00897938 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 1EFF4E5C303648E500BDE11A;
+			remoteInfo = MooneyWidgetExtension;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		1EFF4E72303648E700BDE11A /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				1EFF4E71303648E700BDE11A /* MooneyWidgetExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		1E2D6F0A2FB3A3CF00897938 /* Mooney.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Mooney.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		1EFF4E5D303648E500BDE11A /* MooneyWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = MooneyWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		1EFF4E5F303648E500BDE11A /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
+		1EFF4E61303648E600BDE11A /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
+		1EFF4E773036493200BDE11A /* MooneyWidgetExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MooneyWidgetExtension.entitlements; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -23,6 +54,13 @@
 			);
 			target = 1E2D6F092FB3A3CF00897938 /* Mooney */;
 		};
+		1EFF4E76303648E700BDE11A /* Exceptions for "MooneyWidget" folder in "MooneyWidgetExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 1EFF4E5C303648E500BDE11A /* MooneyWidgetExtension */;
+		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -32,6 +70,14 @@
 				1E2D6F182FB3A3D000897939 /* Exceptions for "Mooney" folder in "Mooney" target */,
 			);
 			path = Mooney;
+			sourceTree = "<group>";
+		};
+		1EFF4E63303648E600BDE11A /* MooneyWidget */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				1EFF4E76303648E700BDE11A /* Exceptions for "MooneyWidget" folder in "MooneyWidgetExtension" target */,
+			);
+			path = MooneyWidget;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -46,13 +92,25 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		1EFF4E5A303648E500BDE11A /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1EFF4E62303648E600BDE11A /* SwiftUI.framework in Frameworks */,
+				1EFF4E60303648E600BDE11A /* WidgetKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
 		1E2D6F012FB3A3CF00897938 = {
 			isa = PBXGroup;
 			children = (
+				1EFF4E773036493200BDE11A /* MooneyWidgetExtension.entitlements */,
 				1E2D6F0C2FB3A3CF00897938 /* Mooney */,
+				1EFF4E63303648E600BDE11A /* MooneyWidget */,
+				1EFF4E5E303648E500BDE11A /* Frameworks */,
 				1E2D6F0B2FB3A3CF00897938 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -61,8 +119,18 @@
 			isa = PBXGroup;
 			children = (
 				1E2D6F0A2FB3A3CF00897938 /* Mooney.app */,
+				1EFF4E5D303648E500BDE11A /* MooneyWidgetExtension.appex */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		1EFF4E5E303648E500BDE11A /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				1EFF4E5F303648E500BDE11A /* WidgetKit.framework */,
+				1EFF4E61303648E600BDE11A /* SwiftUI.framework */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -75,10 +143,12 @@
 				1E2D6F062FB3A3CF00897938 /* Sources */,
 				1E2D6F072FB3A3CF00897938 /* Frameworks */,
 				1E2D6F082FB3A3CF00897938 /* Resources */,
+				1EFF4E72303648E700BDE11A /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				1EFF4E70303648E700BDE11A /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				1E2D6F0C2FB3A3CF00897938 /* Mooney */,
@@ -92,6 +162,28 @@
 			productReference = 1E2D6F0A2FB3A3CF00897938 /* Mooney.app */;
 			productType = "com.apple.product-type.application";
 		};
+		1EFF4E5C303648E500BDE11A /* MooneyWidgetExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 1EFF4E75303648E700BDE11A /* Build configuration list for PBXNativeTarget "MooneyWidgetExtension" */;
+			buildPhases = (
+				1EFF4E59303648E500BDE11A /* Sources */,
+				1EFF4E5A303648E500BDE11A /* Frameworks */,
+				1EFF4E5B303648E500BDE11A /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				1EFF4E63303648E600BDE11A /* MooneyWidget */,
+			);
+			name = MooneyWidgetExtension;
+			packageProductDependencies = (
+			);
+			productName = MooneyWidgetExtension;
+			productReference = 1EFF4E5D303648E500BDE11A /* MooneyWidgetExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -99,12 +191,15 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 2610;
+				LastSwiftUpdateCheck = 2700;
 				LastUpgradeCheck = 2700;
 				TargetAttributes = {
 					1E2D6F092FB3A3CF00897938 = {
 						CreatedOnToolsVersion = 26.1.1;
 						LastSwiftMigration = 2610;
+					};
+					1EFF4E5C303648E500BDE11A = {
+						CreatedOnToolsVersion = 27.0;
 					};
 				};
 			};
@@ -126,12 +221,20 @@
 			projectRoot = "";
 			targets = (
 				1E2D6F092FB3A3CF00897938 /* Mooney */,
+				1EFF4E5C303648E500BDE11A /* MooneyWidgetExtension */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		1E2D6F082FB3A3CF00897938 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		1EFF4E5B303648E500BDE11A /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -148,7 +251,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		1EFF4E59303648E500BDE11A /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		1EFF4E70303648E700BDE11A /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 1EFF4E5C303648E500BDE11A /* MooneyWidgetExtension */;
+			targetProxy = 1EFF4E6F303648E700BDE11A /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		1E2D6F132FB3A3D000897938 /* Debug */ = {
@@ -298,9 +416,10 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.4.0;
+				MARKETING_VERSION = 1.5.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.nickpearson.Mooney;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
@@ -336,12 +455,79 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.4.0;
+				MARKETING_VERSION = 1.5.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.nickpearson.Mooney;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		1EFF4E73303648E700BDE11A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = MooneyWidgetExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 47543PU92M;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = MooneyWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = MooneyWidget;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nickpearson.Mooney.MooneyWidget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		1EFF4E74303648E700BDE11A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = MooneyWidgetExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 47543PU92M;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = MooneyWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = MooneyWidget;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nickpearson.Mooney.MooneyWidget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
@@ -366,6 +552,15 @@
 			buildConfigurations = (
 				1E2D6F162FB3A3D000897938 /* Debug */,
 				1E2D6F172FB3A3D000897938 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		1EFF4E75303648E700BDE11A /* Build configuration list for PBXNativeTarget "MooneyWidgetExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				1EFF4E73303648E700BDE11A /* Debug */,
+				1EFF4E74303648E700BDE11A /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

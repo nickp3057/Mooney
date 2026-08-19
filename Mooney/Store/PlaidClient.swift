@@ -1,5 +1,14 @@
 import Foundation
 
+// A lightweight, locally-cached copy of the accounts Link returned at
+// connect time — lets Settings offer a "Widget Account" picker without a
+// round trip, since the backend itself only remembers a single accountId.
+struct PlaidAccountInfo: Codable, Identifiable, Hashable {
+    var id: String
+    var name: String
+    var mask: String?
+}
+
 enum PlaidClientError: LocalizedError {
     case noBackendURL
     case invalidResponse
@@ -36,6 +45,31 @@ struct PlaidClient {
         set { UserDefaults.standard.set(newValue, forKey: isConnectedDefaultsKey) }
     }
 
+    static let cachedAccountsDefaultsKey = "mooney_plaid_cached_accounts"
+    static let widgetAccountIdDefaultsKey = "mooney_plaid_widget_account_id"
+
+    // Full list of accounts Link returned at connect time, so the "Widget
+    // Account" picker in Settings has something to choose from without
+    // reconnecting.
+    static var cachedAccounts: [PlaidAccountInfo] {
+        get {
+            guard let data = UserDefaults.standard.data(forKey: cachedAccountsDefaultsKey) else { return [] }
+            return (try? JSONDecoder().decode([PlaidAccountInfo].self, from: data)) ?? []
+        }
+        set {
+            let data = try? JSONEncoder().encode(newValue)
+            UserDefaults.standard.set(data, forKey: cachedAccountsDefaultsKey)
+        }
+    }
+
+    // Which connected account the lock screen widget tracks — independent
+    // of whichever account the Dashboard's hero card shows. Nil until the
+    // user explicitly picks one.
+    static var widgetAccountId: String? {
+        get { UserDefaults.standard.string(forKey: widgetAccountIdDefaultsKey) }
+        set { UserDefaults.standard.set(newValue, forKey: widgetAccountIdDefaultsKey) }
+    }
+
     private func baseURL() throws -> URL {
         guard let raw = Self.backendURL, !raw.isEmpty, let url = URL(string: raw) else {
             throw PlaidClientError.noBackendURL
@@ -43,8 +77,12 @@ struct PlaidClient {
         return url
     }
 
-    private func send(_ path: String, method: String, body: [String: Any]? = nil) async throws -> Data {
-        let url = try baseURL().appendingPathComponent(path)
+    private func send(_ path: String, method: String, query: [URLQueryItem]? = nil, body: [String: Any]? = nil) async throws -> Data {
+        guard var components = URLComponents(url: try baseURL().appendingPathComponent(path), resolvingAgainstBaseURL: false) else {
+            throw PlaidClientError.invalidResponse
+        }
+        components.queryItems = query
+        guard let url = components.url else { throw PlaidClientError.invalidResponse }
         var request = URLRequest(url: url)
         request.httpMethod = method
         if let body {
@@ -74,7 +112,7 @@ struct PlaidClient {
         ])
     }
 
-    func fetchBalance() async throws -> PlaidBalance {
+    func fetchBalance(accountId: String? = nil) async throws -> PlaidBalance {
         struct Response: Decodable {
             let name: String
             let current: Double?
@@ -82,7 +120,8 @@ struct PlaidClient {
             let isoCurrencyCode: String?
             let asOf: String
         }
-        let data = try await send("balance", method: "GET")
+        let query = accountId.map { [URLQueryItem(name: "account_id", value: $0)] }
+        let data = try await send("balance", method: "GET", query: query)
         let decoded = try JSONDecoder().decode(Response.self, from: data)
         return PlaidBalance(
             accountName: decoded.name,
