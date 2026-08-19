@@ -13,6 +13,8 @@ struct BankConnectionSettingsView: View {
     @State private var isWorking = false
     @State private var errorMessage: String?
     @State private var showDisconnectConfirm = false
+    @State private var pendingPublicToken: String?
+    @State private var pendingAccounts: [Account] = []
 
     private let plaidClient = PlaidClient()
 
@@ -65,6 +67,12 @@ struct BankConnectionSettingsView: View {
                 linkSession.sheet()
             }
         }
+        .sheet(isPresented: Binding(
+            get: { !pendingAccounts.isEmpty },
+            set: { if !$0 { pendingAccounts = []; pendingPublicToken = nil } }
+        )) {
+            accountPickerSheet
+        }
         .confirmationDialog(
             "Disconnect Bank Account?",
             isPresented: $showDisconnectConfirm,
@@ -96,11 +104,20 @@ struct BankConnectionSettingsView: View {
             token: token,
             onSuccess: { success in
                 isPresentingLink = false
-                guard let account = success.metadata.accounts.first else {
+                let accounts = success.metadata.accounts
+                guard let only = accounts.first else {
                     errorMessage = "Link didn't return an account to connect."
                     return
                 }
-                Task { await finishConnecting(publicToken: success.publicToken, accountId: account.id) }
+                if accounts.count == 1 {
+                    Task { await finishConnecting(publicToken: success.publicToken, accountId: only.id) }
+                } else {
+                    // Multiple accounts came back (MACU's own Account Select
+                    // step doesn't let you deselect any) — ask here instead
+                    // of silently taking whichever one Plaid listed first.
+                    pendingPublicToken = success.publicToken
+                    pendingAccounts = accounts
+                }
             },
             onExit: { exit in
                 isPresentingLink = false
@@ -116,6 +133,40 @@ struct BankConnectionSettingsView: View {
             isPresentingLink = true
         } catch {
             errorMessage = error.localizedDescription
+        }
+    }
+
+    private var accountPickerSheet: some View {
+        NavigationStack {
+            List(pendingAccounts, id: \.id) { account in
+                Button {
+                    guard let publicToken = pendingPublicToken else { return }
+                    let accountId = account.id
+                    pendingAccounts = []
+                    pendingPublicToken = nil
+                    Task { await finishConnecting(publicToken: publicToken, accountId: accountId) }
+                } label: {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(account.name).foregroundStyle(.primary)
+                            Text(account.subtype.description.capitalized + (account.mask.map { " · ••••\($0)" } ?? ""))
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                    }
+                }
+                .buttonStyle(.plain)
+            }
+            .navigationTitle("Choose Account")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        pendingAccounts = []
+                        pendingPublicToken = nil
+                    }
+                }
+            }
         }
     }
 
