@@ -70,6 +70,31 @@ struct PlaidClient {
         set { UserDefaults.standard.set(newValue, forKey: widgetAccountIdDefaultsKey) }
     }
 
+    static let bankDisplayNameDefaultsKey = "mooney_plaid_bank_display_name"
+
+    // User-editable label for the connected institution, shown anywhere the
+    // Dashboard/reconciliation views used to hardcode "MACU" — lets the app
+    // work with whatever bank someone actually connects.
+    static var bankDisplayName: String {
+        get {
+            let stored = UserDefaults.standard.string(forKey: bankDisplayNameDefaultsKey)
+            return (stored?.isEmpty == false) ? stored! : "MACU"
+        }
+        set { UserDefaults.standard.set(newValue, forKey: bankDisplayNameDefaultsKey) }
+    }
+
+    static let autoSyncBalanceDefaultsKey = "mooney_plaid_auto_sync_balance"
+
+    // Off (default): the Dashboard hero number stays the bucket-total
+    // invariant, with the live bank balance shown as a subordinate figure
+    // and a discrepancy warning on mismatch. On: the hero number becomes the
+    // live bank balance directly, and the app reports how much of it is
+    // unallocated instead of warning about a mismatch.
+    static var autoSyncBalance: Bool {
+        get { UserDefaults.standard.bool(forKey: autoSyncBalanceDefaultsKey) }
+        set { UserDefaults.standard.set(newValue, forKey: autoSyncBalanceDefaultsKey) }
+    }
+
     private func baseURL() throws -> URL {
         guard let raw = Self.backendURL, !raw.isEmpty, let url = URL(string: raw) else {
             throw PlaidClientError.noBackendURL

@@ -7,6 +7,8 @@ struct BankConnectionSettingsView: View {
     // ambiguous once both modules are imported.
     @SwiftUI.Environment(\.tabAccentColor) private var accentColor
     @AppStorage(PlaidClient.backendURLDefaultsKey) private var backendURL: String = ""
+    @AppStorage(PlaidClient.bankDisplayNameDefaultsKey) private var bankDisplayName: String = "MACU"
+    @AppStorage(PlaidClient.autoSyncBalanceDefaultsKey) private var autoSyncBalance: Bool = false
     @State private var isConnected = PlaidClient.isConnected
     @State private var linkSession: PlaidLinkSession?
     @State private var isPresentingLink = false
@@ -31,6 +33,26 @@ struct BankConnectionSettingsView: View {
                 Text("Backend URL")
             } footer: {
                 Text("The Tailscale address of your Mooney Plaid backend.")
+            }
+
+            Section {
+                TextField("MACU", text: $bankDisplayName)
+                    .textInputAutocapitalization(.words)
+                    .autocorrectionDisabled()
+            } header: {
+                Text("Bank Name")
+            } footer: {
+                Text("Used anywhere the app refers to your connected bank, like \"Checking\" and \"Correct Balance.\"")
+            }
+
+            Section {
+                Toggle("Auto-Sync to Bank Balance", isOn: $autoSyncBalance)
+            } header: {
+                Text("Dashboard Balance")
+            } footer: {
+                Text(autoSyncBalance
+                     ? "The top balance follows your live \(bankDisplayName.isEmpty ? "bank" : bankDisplayName) balance directly, and Mooney tells you how much of it is unallocated."
+                     : "The top balance stays based on your buckets. Mooney flags it when that total doesn't match your live \(bankDisplayName.isEmpty ? "bank" : bankDisplayName) balance.")
             }
 
             Section {

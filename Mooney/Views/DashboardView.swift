@@ -7,7 +7,6 @@ struct DashboardView: View {
     @Environment(\.openURL) private var openURL
     @State private var selectedBucket: Bucket?
     @State private var showBalanceOverride = false
-    @State private var showSyncConfirm = false
     @State private var showAdjustBuckets = false
     @State private var loggingPaymentId: String?
     @State private var plaidBalance: PlaidBalance?
@@ -18,6 +17,8 @@ struct DashboardView: View {
     // view would never notice the Bank Connection screen setting it until
     // something else happened to force a re-render.
     @AppStorage(PlaidClient.backendURLDefaultsKey) private var plaidBackendURL: String = ""
+    @AppStorage(PlaidClient.bankDisplayNameDefaultsKey) private var bankDisplayName: String = "MACU"
+    @AppStorage(PlaidClient.autoSyncBalanceDefaultsKey) private var autoSyncBalance: Bool = false
 
     private let plaidClient = PlaidClient()
 
@@ -25,13 +26,34 @@ struct DashboardView: View {
         !plaidBackendURL.isEmpty
     }
 
+    private var showLiveBankSection: Bool {
+        !store.isDecoyMode && plaidConfigured
+    }
+
+    // In auto-sync mode, the hero number IS the live bank balance — no
+    // separate ledger-total vs. bank-total split — so the headline can never
+    // itself be "wrong," only the buckets under it can be under- or
+    // over-allocated relative to what's actually in the bank.
+    private var heroBalance: Double {
+        if autoSyncBalance, showLiveBankSection, let current = plaidBalance?.current {
+            return current
+        }
+        return store.totalSavings
+    }
+
     private var plaidDiscrepancy: (message: String, isOver: Bool)? {
         guard let current = plaidBalance?.current else { return nil }
         let diff = current - store.totalSavings
         guard abs(diff) >= 0.01 else { return nil }
-        return diff > 0
-            ? ("Unallocated balance: \(fmt(diff))", true)
-            : ("Yo you broke by \(fmt(abs(diff)))", false)
+        if diff > 0 {
+            return autoSyncBalance
+                ? ("Unallocated: \(fmt(diff))", true)
+                : ("Unallocated balance: \(fmt(diff))", true)
+        } else {
+            return autoSyncBalance
+                ? ("Over-allocated by \(fmt(abs(diff)))", false)
+                : ("Yo you broke by \(fmt(abs(diff)))", false)
+        }
     }
 
     // Easter egg: "69" showing up anywhere in the balance is a classic meme trigger.
@@ -90,8 +112,48 @@ struct DashboardView: View {
                 // second competing headline number ──
                 Section {
                     VStack(alignment: .leading, spacing: 6) {
+                        if showLiveBankSection {
+                            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                                Text("\(bankDisplayName) Checking")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                if let plaidBalance {
+                                    Text(fmt(plaidBalance.current ?? 0))
+                                        .font(.caption2.weight(.semibold))
+                                        .monospacedDigit()
+                                        .foregroundStyle(.secondary)
+                                    if balanceHasNiceEasterEgg {
+                                        Text("😏")
+                                            .font(.caption2)
+                                    }
+                                } else if let plaidError {
+                                    Text(plaidError)
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(1)
+                                } else {
+                                    Text("Loading…")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                if plaidLoading {
+                                    ProgressView().controlSize(.mini)
+                                } else {
+                                    Button {
+                                        Task { await refreshPlaidBalance() }
+                                    } label: {
+                                        Image(systemName: "arrow.clockwise")
+                                            .font(.system(size: 9, weight: .semibold))
+                                    }
+                                    .buttonStyle(.plain)
+                                    .foregroundStyle(.secondary)
+                                }
+                            }
+                            .padding(.bottom, 2)
+                        }
                         HStack(alignment: .firstTextBaseline) {
-                            Text("SAVINGS BALANCE")
+                            Text(autoSyncBalance && showLiveBankSection ? "\(bankDisplayName.uppercased()) BALANCE" : "SAVINGS BALANCE")
                                 .font(.system(size: 11, weight: .semibold))
                                 .foregroundStyle(.secondary)
                             Spacer()
@@ -104,7 +166,7 @@ struct DashboardView: View {
                             .buttonStyle(.plain)
                             .foregroundStyle(accentColor)
                         }
-                        Text(fmt(store.totalSavings))
+                        Text(fmt(heroBalance))
                             .font(.system(size: 40, weight: .bold))
                             .monospacedDigit()
                         if heroDelta != 0 {
@@ -136,45 +198,7 @@ struct DashboardView: View {
                             .padding(.top, 4)
                         }
 
-                        if !store.isDecoyMode && plaidConfigured {
-                            Divider().padding(.top, 4)
-                            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                                Text("MACU Checking")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                if let plaidBalance {
-                                    Text(fmt(plaidBalance.current ?? 0))
-                                        .font(.subheadline.weight(.semibold))
-                                        .monospacedDigit()
-                                    if balanceHasNiceEasterEgg {
-                                        Text("😏")
-                                            .font(.caption2)
-                                    }
-                                } else if let plaidError {
-                                    Text(plaidError)
-                                        .font(.caption2)
-                                        .foregroundStyle(.secondary)
-                                } else {
-                                    Text("Loading…")
-                                        .font(.caption2)
-                                        .foregroundStyle(.secondary)
-                                }
-                                Spacer()
-                                if plaidLoading {
-                                    ProgressView()
-                                } else {
-                                    Button {
-                                        Task { await refreshPlaidBalance() }
-                                    } label: {
-                                        Image(systemName: "arrow.clockwise")
-                                            .font(.system(size: 11, weight: .semibold))
-                                    }
-                                    .buttonStyle(.plain)
-                                    .foregroundStyle(accentColor)
-                                }
-                            }
-                            .padding(.top, 2)
-
+                        if showLiveBankSection {
                             // Reconciles the live bank balance against what
                             // the buckets/bills ledger thinks exists — these
                             // can legitimately diverge (unspent cash sitting
@@ -189,20 +213,17 @@ struct DashboardView: View {
                             }
 
                             if plaidBalance?.current != nil {
-                                HStack(spacing: 14) {
-                                    Button("Update to MACU Balance") { showSyncConfirm = true }
-                                    Button("Adjust Buckets") { showAdjustBuckets = true }
-                                }
-                                .font(.caption2.weight(.semibold))
-                                .foregroundStyle(accentColor)
-                                .buttonStyle(.plain)
-                                .padding(.top, 4)
+                                Button("Adjust Buckets") { showAdjustBuckets = true }
+                                    .font(.caption2.weight(.semibold))
+                                    .foregroundStyle(accentColor)
+                                    .buttonStyle(.plain)
+                                    .padding(.top, 4)
                             }
                         }
                     }
                     .padding(.vertical, 4)
                     .task {
-                        if !store.isDecoyMode && plaidConfigured {
+                        if showLiveBankSection {
                             await refreshPlaidBalance()
                         }
                     }
@@ -236,9 +257,18 @@ struct DashboardView: View {
 
                 if !store.currentCardPayments.isEmpty {
                     Section("Credit Cards") {
-                        ForEach(store.currentCardPayments, id: \.payment.id) { pending in
-                            cardRow(pending)
+                        LazyVGrid(
+                            columns: [GridItem(.flexible(), alignment: .leading), GridItem(.flexible(), alignment: .leading)],
+                            alignment: .leading,
+                            spacing: 6
+                        ) {
+                            ForEach(store.currentCardPayments, id: \.payment.id) { pending in
+                                cardChip(pending)
+                            }
                         }
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                        .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
                     }
                 }
 
@@ -315,25 +345,14 @@ struct DashboardView: View {
             .navigationTitle("Ledger")
             .navigationBarTitleDisplayMode(.inline)
             .sheet(item: $selectedBucket) { BucketDetailView(bucket: $0) }
-            .sheet(isPresented: $showBalanceOverride) { BalanceOverrideView() }
+            .sheet(isPresented: $showBalanceOverride) {
+                BalanceOverrideView(
+                    liveBankBalance: showLiveBankSection ? plaidBalance?.current : nil,
+                    bankName: bankDisplayName
+                )
+            }
             .sheet(isPresented: $showAdjustBuckets) {
                 AdjustBucketsView(target: plaidBalance?.current ?? store.totalSavings)
-            }
-            .confirmationDialog(
-                "Update to MACU Balance?",
-                isPresented: $showSyncConfirm,
-                titleVisibility: .visible
-            ) {
-                Button("Update") {
-                    if let current = plaidBalance?.current {
-                        store.overrideTotalSavings(to: current, note: "Synced to MACU balance")
-                    }
-                }
-                Button("Cancel", role: .cancel) {}
-            } message: {
-                if let current = plaidBalance?.current {
-                    Text("Sets your savings total to \(fmt(current)) by posting the difference as an adjustment on your general bucket.")
-                }
             }
             .sheet(isPresented: Binding(
                 get: { loggingPaymentId != nil },
@@ -373,58 +392,62 @@ struct DashboardView: View {
     }
 
     @ViewBuilder
-    private func cardRow(_ pending: (card: CreditCard, payment: CardPayment)) -> some View {
+    private func cardChip(_ pending: (card: CreditCard, payment: CardPayment)) -> some View {
         let isPaid = pending.payment.isPaid
         let accentColor = store.accentColor(for: .ledger)
-        HStack(spacing: 10) {
+        HStack(alignment: .top, spacing: 6) {
             Group {
                 if isPaid {
-                    HStack(spacing: 10) {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundStyle(.green)
-                            .frame(width: 20)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(pending.card.name).foregroundStyle(.primary)
-                            Text("Paid for this cycle")
-                                .font(.caption).foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack(spacing: 5) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.system(size: 12))
+                                .foregroundStyle(.green)
+                            Text(pending.card.name)
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(.primary)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.8)
                         }
-                        Spacer()
-                        Text("Paid").font(.caption.weight(.semibold)).foregroundStyle(.green)
+                        Text("Paid")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.green)
                     }
                 } else {
                     Button {
                         loggingPaymentId = pending.payment.id
                     } label: {
-                        HStack(spacing: 10) {
-                            Image(systemName: "creditcard.fill")
-                                .foregroundStyle(accentColor)
-                                .frame(width: 20)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(pending.card.name).foregroundStyle(.primary)
-                                Text(pending.payment.amountPaid > 0
-                                     ? "Due \(fmtDueDate(pending.payment.dueDate)) · \(fmt(pending.payment.amountPaid)) paid"
-                                     : "Due \(fmtDueDate(pending.payment.dueDate))")
-                                    .font(.caption).foregroundStyle(.secondary)
+                        VStack(alignment: .leading, spacing: 3) {
+                            HStack(spacing: 5) {
+                                Image(systemName: "creditcard.fill")
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(accentColor)
+                                Text(pending.card.name)
+                                    .font(.system(size: 13, weight: .medium))
+                                    .foregroundStyle(.primary)
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.8)
                             }
-                            Spacer()
-                            Text("Log Payment")
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(accentColor)
+                            Text("Due \(fmtDueDate(pending.payment.dueDate))")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
                         }
                     }
                     .buttonStyle(.plain)
                 }
             }
+            Spacer(minLength: 0)
             if let app = pending.card.bankApp {
                 Button { openBankApp(app) } label: {
                     Image(systemName: "arrow.up.forward.app.fill")
+                        .font(.system(size: 10))
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(accentColor)
             }
         }
-        .padding(.vertical, 2)
-        .bubbleCardRow()
+        .bubbleCard()
     }
 
     private func openBankApp(_ app: BankApp) {

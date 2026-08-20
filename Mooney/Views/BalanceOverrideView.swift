@@ -3,6 +3,12 @@ import SwiftUI
 struct BalanceOverrideView: View {
     @Environment(AppStore.self) var store
     @Environment(\.dismiss) var dismiss
+    // Live bank balance to offer as a one-tap quick-fill (folded in from what
+    // used to be a separate "Update to [Bank] Balance" button/dialog on the
+    // Dashboard) — nil when Plaid isn't configured/connected or hasn't
+    // returned a balance yet, in which case this section just doesn't show.
+    var liveBankBalance: Double? = nil
+    var bankName: String = "Bank"
     @State private var targetStr = ""
     @State private var note = ""
     @FocusState private var amountFocused: Bool
@@ -33,6 +39,21 @@ struct BalanceOverrideView: View {
                         }
                     }
                     TextField("Reason (optional) — e.g. interest, initial setup", text: $note)
+                }
+                if let liveBankBalance {
+                    Section {
+                        Button {
+                            targetStr = String(format: "%.2f", liveBankBalance)
+                            note = "Synced to \(bankName) balance"
+                            amountFocused = false
+                        } label: {
+                            HStack {
+                                Text("Sync to \(bankName) Balance")
+                                Spacer()
+                                Text(fmt(liveBankBalance)).foregroundStyle(.secondary)
+                            }
+                        }
+                    }
                 }
                 Section {
                     Text("This logs the difference as an adjustment on the general Savings bucket, so it stays visible in that bucket's history and in the ledger — it doesn't just overwrite the number.")

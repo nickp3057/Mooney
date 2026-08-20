@@ -9,6 +9,7 @@ struct AdjustBucketsView: View {
     @Environment(AppStore.self) var store
     @Environment(\.dismiss) var dismiss
     let target: Double
+    @AppStorage(PlaidClient.bankDisplayNameDefaultsKey) private var bankDisplayName: String = "MACU"
 
     @State private var deltas: [String: Double] = [:]
 
@@ -20,7 +21,7 @@ struct AdjustBucketsView: View {
         NavigationStack {
             Form {
                 Section {
-                    HStack { Text("Target (MACU)"); Spacer(); Text(fmt(target)).foregroundStyle(.secondary) }
+                    HStack { Text("Target (\(bankDisplayName))"); Spacer(); Text(fmt(target)).foregroundStyle(.secondary) }
                     HStack { Text("Current Total"); Spacer(); Text(fmt(store.totalSavings)).foregroundStyle(.secondary) }
                     if totalDelta != 0 {
                         HStack { Text("After Changes"); Spacer(); Text(fmt(previewTotal)).foregroundStyle(.secondary) }

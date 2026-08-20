@@ -344,6 +344,13 @@ class AppStore {
         ensureCardPayments()
     }
 
+    func toggleCreditCardActive(id: String) {
+        guard let i = state.creditCards.firstIndex(where: { $0.id == id }) else { return }
+        state.creditCards[i].isActive.toggle()
+        save()
+        ensureCardPayments()
+    }
+
     // Clamps a target day-of-month to however many days that month actually
     // has (e.g. dueDay 30 in February lands on the 28th/29th).
     func nextMonthlyDueDate(day: Int, onOrAfter date: Date) -> Date {
