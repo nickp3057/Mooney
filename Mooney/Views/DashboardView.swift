@@ -12,6 +12,12 @@ struct DashboardView: View {
     @State private var plaidBalance: PlaidBalance?
     @State private var plaidError: String?
     @State private var plaidLoading = false
+    // The widget's account (PlaidClient.widgetAccountId) — spending/checking
+    // money, distinct from the Primary Savings account above that the
+    // hero balance and bucket reconciliation are based on.
+    @State private var checkingBalance: PlaidBalance?
+    @State private var checkingError: String?
+    @State private var checkingLoading = false
     // @AppStorage instead of reading PlaidClient.backendURL directly — the
     // latter is a plain UserDefaults read SwiftUI can't observe, so this
     // view would never notice the Bank Connection screen setting it until
@@ -28,6 +34,10 @@ struct DashboardView: View {
 
     private var showLiveBankSection: Bool {
         !store.isDecoyMode && plaidConfigured
+    }
+
+    private var showCheckingSection: Bool {
+        showLiveBankSection && PlaidClient.widgetAccountId != nil
     }
 
     // In auto-sync mode, the hero number IS the live bank balance — no
@@ -112,48 +122,31 @@ struct DashboardView: View {
                 // second competing headline number ──
                 Section {
                     VStack(alignment: .leading, spacing: 6) {
+                        if showCheckingSection {
+                            miniBalanceRow(
+                                label: "\(bankDisplayName) Checking",
+                                balance: checkingBalance,
+                                error: checkingError,
+                                loading: checkingLoading
+                            ) {
+                                Task { await refreshCheckingBalance() }
+                            }
+                            .padding(.bottom, 2)
+                        }
                         if showLiveBankSection {
-                            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                                Text("\(bankDisplayName) Checking")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                                if let plaidBalance {
-                                    Text(fmt(plaidBalance.current ?? 0))
-                                        .font(.caption2.weight(.semibold))
-                                        .monospacedDigit()
-                                        .foregroundStyle(.secondary)
-                                    if balanceHasNiceEasterEgg {
-                                        Text("😏")
-                                            .font(.caption2)
-                                    }
-                                } else if let plaidError {
-                                    Text(plaidError)
-                                        .font(.caption2)
-                                        .foregroundStyle(.secondary)
-                                        .lineLimit(1)
-                                } else {
-                                    Text("Loading…")
-                                        .font(.caption2)
-                                        .foregroundStyle(.secondary)
-                                }
-                                Spacer()
-                                if plaidLoading {
-                                    ProgressView().controlSize(.mini)
-                                } else {
-                                    Button {
-                                        Task { await refreshPlaidBalance() }
-                                    } label: {
-                                        Image(systemName: "arrow.clockwise")
-                                            .font(.system(size: 9, weight: .semibold))
-                                    }
-                                    .buttonStyle(.plain)
-                                    .foregroundStyle(.secondary)
-                                }
+                            miniBalanceRow(
+                                label: "\(bankDisplayName) Primary Savings",
+                                balance: plaidBalance,
+                                error: plaidError,
+                                loading: plaidLoading,
+                                showEasterEgg: balanceHasNiceEasterEgg
+                            ) {
+                                Task { await refreshPlaidBalance() }
                             }
                             .padding(.bottom, 2)
                         }
                         HStack(alignment: .firstTextBaseline) {
-                            Text(autoSyncBalance && showLiveBankSection ? "\(bankDisplayName.uppercased()) BALANCE" : "SAVINGS BALANCE")
+                            Text(autoSyncBalance && showLiveBankSection ? "\(bankDisplayName.uppercased()) PRIMARY SAVINGS" : "SAVINGS BALANCE")
                                 .font(.system(size: 11, weight: .semibold))
                                 .foregroundStyle(.secondary)
                             Spacer()
@@ -225,6 +218,9 @@ struct DashboardView: View {
                     .task {
                         if showLiveBankSection {
                             await refreshPlaidBalance()
+                        }
+                        if showCheckingSection {
+                            await refreshCheckingBalance()
                         }
                     }
                     .bubbleCard()
@@ -375,20 +371,76 @@ struct DashboardView: View {
         } catch {
             plaidError = error.localizedDescription
         }
-        await refreshWidgetBalance()
     }
 
-    // Separate from the Dashboard's own balance fetch above — the widget can
-    // track a different account (PlaidClient.widgetAccountId), so this may
-    // be a second network call. Failures here are silent: the widget just
-    // keeps showing its last-known snapshot rather than surfacing an error
-    // on the Dashboard for a background sync the user didn't ask to watch.
-    private func refreshWidgetBalance() async {
+    // The widget's account (PlaidClient.widgetAccountId) can be different
+    // from the Primary Savings account above, so this is its own fetch. It
+    // both drives the tiny "Checking" line on the Dashboard and refreshes
+    // the App-Group-backed snapshot the lock-screen widget reads.
+    private func refreshCheckingBalance() async {
         guard let widgetAccountId = PlaidClient.widgetAccountId else { return }
-        guard let balance = try? await plaidClient.fetchBalance(accountId: widgetAccountId),
-              let current = balance.current else { return }
-        WidgetBalanceStore.write(WidgetBalanceSnapshot(accountName: balance.accountName, balance: current, asOf: balance.asOf))
-        WidgetCenter.shared.reloadTimelines(ofKind: "MooneyWidget")
+        checkingLoading = true
+        defer { checkingLoading = false }
+        do {
+            let balance = try await plaidClient.fetchBalance(accountId: widgetAccountId)
+            checkingBalance = balance
+            checkingError = nil
+            // Prefer available over current for the widget specifically — the
+            // widget is meant to answer "what can I actually spend right
+            // now," and current doesn't reflect pending holds/purchases yet.
+            if let spendable = balance.available ?? balance.current {
+                WidgetBalanceStore.write(WidgetBalanceSnapshot(accountName: balance.accountName, balance: spendable, asOf: balance.asOf))
+                WidgetCenter.shared.reloadTimelines(ofKind: "MooneyWidget")
+            }
+        } catch {
+            checkingError = error.localizedDescription
+        }
+    }
+
+    @ViewBuilder
+    private func miniBalanceRow(
+        label: String,
+        balance: PlaidBalance?,
+        error: String?,
+        loading: Bool,
+        showEasterEgg: Bool = false,
+        onRefresh: @escaping () -> Void
+    ) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Text(label)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            if let balance {
+                Text(fmt(balance.current ?? 0))
+                    .font(.caption2.weight(.semibold))
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+                if showEasterEgg {
+                    Text("😏")
+                        .font(.caption2)
+                }
+            } else if let error {
+                Text(error)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            } else {
+                Text("Loading…")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            if loading {
+                ProgressView().controlSize(.mini)
+            } else {
+                Button(action: onRefresh) {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 9, weight: .semibold))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+            }
+        }
     }
 
     @ViewBuilder

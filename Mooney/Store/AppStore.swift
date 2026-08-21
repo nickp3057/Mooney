@@ -150,7 +150,17 @@ class AppStore {
     func addIncome(_ p: Income)      { state.incomes.append(p); save() }
     func deleteIncome(id: String)      { state.incomes.removeAll { $0.id == id }; save() }
     func addTransaction(_ t: AppTransaction) { state.transactions.append(t); save() }
-    func deleteTransaction(id: String)   { state.transactions.removeAll { $0.id == id }; save() }
+
+    // Deleting one leg of a transfer (see transferBetweenBuckets) also
+    // deletes its paired leg, so a transfer can't be left half-reverted.
+    func deleteTransaction(id: String) {
+        if let linkedId = state.transactions.first(where: { $0.id == id })?.linkedId {
+            state.transactions.removeAll { $0.id == id || $0.id == linkedId }
+        } else {
+            state.transactions.removeAll { $0.id == id }
+        }
+        save()
+    }
     func addBucket(_ b: Bucket)          { state.buckets.append(b); save() }
     func deleteBucket(id: String) {
         guard state.buckets.first(where: { $0.id == id })?.isGeneral != true else { return }
@@ -605,6 +615,30 @@ class AppStore {
             note: note.isEmpty ? "Balance correction" : note,
             type: "adjustment"
         ))
+        return true
+    }
+
+    // Moves money between two savings buckets as a paired debit/credit — unlike
+    // overrideTotalSavings or a deposit/spend adjustment, the two transactions
+    // always net to zero, so totalSavings itself never moves.
+    @discardableResult
+    func transferBetweenBuckets(fromId: String, toId: String, amount: Double, note: String) -> Bool {
+        guard fromId != toId, amount > 0 else { return false }
+        guard state.buckets.contains(where: { $0.id == fromId }),
+              state.buckets.contains(where: { $0.id == toId }) else { return false }
+        let transferNote = note.isEmpty ? "Transfer" : note
+        let date = todayISO()
+        let outId = UUID().uuidString
+        let inId = UUID().uuidString
+        state.transactions.append(AppTransaction(
+            id: outId, bucketId: fromId, amount: -amount, date: date,
+            note: transferNote, type: "transfer", linkedId: inId
+        ))
+        state.transactions.append(AppTransaction(
+            id: inId, bucketId: toId, amount: amount, date: date,
+            note: transferNote, type: "transfer", linkedId: outId
+        ))
+        save()
         return true
     }
 

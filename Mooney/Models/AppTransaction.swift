@@ -7,4 +7,9 @@ struct AppTransaction: Identifiable, Codable {
     var date: String
     var note: String
     var type: String
+    // Points at the paired leg of a bucket-to-bucket transfer (see
+    // AppStore.transferBetweenBuckets) so deleting either leg removes both —
+    // without this, deleting one side would leave an orphaned entry and
+    // silently break the totalSavings invariant. Nil for every other type.
+    var linkedId: String? = nil
 }

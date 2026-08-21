@@ -38,9 +38,16 @@ private struct BucketDetailContent: View {
     var switchTo: (Bucket) -> Void
 
     @State private var showSpendForm = false
-    @State private var spendIsDeposit = false
     @State private var spendAmt  = ""
     @State private var spendNote = ""
+
+    enum TransferDirection { case from, to }
+
+    @State private var showTransferForm = false
+    @State private var transferDirection: TransferDirection = .to
+    @State private var transferOtherId: String?
+    @State private var transferAmt = ""
+    @State private var transferNote = ""
 
     var balance: Double { store.balance(for: bucket.id) }
     var lastA: Double   { store.lastAlloc(for: bucket.id) }
@@ -54,6 +61,13 @@ private struct BucketDetailContent: View {
 
     var otherBuckets: [Bucket] {
         store.activeBuckets.filter { $0.id != bucket.id }
+    }
+
+    // Transfers only make sense between two savings buckets — a spending
+    // bucket is excluded from totalSavings, so moving money into one would
+    // shrink the total instead of just reshuffling it.
+    var transferTargets: [Bucket] {
+        store.savingsBuckets.filter { $0.id != bucket.id }
     }
 
     struct HistoryItem: Identifiable {
@@ -159,20 +173,8 @@ private struct BucketDetailContent: View {
         } else {
             Section {
                 Group {
-                    if !showSpendForm {
-                        HStack(spacing: 10) {
-                            Button("Record Spending") { spendIsDeposit = false; showSpendForm = true }
-                                .foregroundStyle(bucket.color)
-                            Button("Record Deposit") { spendIsDeposit = true; showSpendForm = true }
-                                .foregroundStyle(bucket.color)
-                        }
-                    } else {
+                    if showSpendForm {
                         VStack(spacing: 10) {
-                            Picker("Type", selection: $spendIsDeposit) {
-                                Text("Spending").tag(false)
-                                Text("Deposit").tag(true)
-                            }
-                            .pickerStyle(.segmented)
                             HStack {
                                 Text("$").foregroundStyle(.secondary)
                                 TextField("0.00", text: $spendAmt).keyboardType(.decimalPad)
@@ -186,6 +188,46 @@ private struct BucketDetailContent: View {
                                     showSpendForm = false; spendAmt = ""; spendNote = ""
                                 }
                                 .buttonStyle(.bordered)
+                            }
+                        }
+                    } else if showTransferForm {
+                        VStack(spacing: 10) {
+                            Picker("Direction", selection: $transferDirection) {
+                                Text("To").tag(TransferDirection.to)
+                                Text("From").tag(TransferDirection.from)
+                            }
+                            .pickerStyle(.segmented)
+                            Picker(transferDirection == .to ? "To" : "From", selection: $transferOtherId) {
+                                ForEach(transferTargets) { other in
+                                    Text(other.name).tag(Optional(other.id))
+                                }
+                            }
+                            .pickerStyle(.menu)
+                            HStack {
+                                Text("$").foregroundStyle(.secondary)
+                                TextField("0.00", text: $transferAmt).keyboardType(.decimalPad)
+                                Divider()
+                                TextField("Note", text: $transferNote)
+                            }
+                            HStack(spacing: 10) {
+                                Button("Transfer") { saveTransfer() }
+                                    .buttonStyle(.borderedProminent).tint(bucket.color)
+                                    .disabled(transferOtherId == nil)
+                                Button("Cancel") { resetTransferForm() }
+                                    .buttonStyle(.bordered)
+                            }
+                        }
+                    } else {
+                        HStack(spacing: 10) {
+                            Button("Record Spending") { showSpendForm = true }
+                                .foregroundStyle(bucket.color)
+                            if !transferTargets.isEmpty {
+                                Button("Transfer") {
+                                    transferDirection = .to
+                                    transferOtherId = transferTargets.first?.id
+                                    showTransferForm = true
+                                }
+                                .foregroundStyle(bucket.color)
                             }
                         }
                     }
@@ -280,10 +322,21 @@ private struct BucketDetailContent: View {
         guard let amt = Double(spendAmt), amt > 0 else { return }
         store.addTransaction(AppTransaction(
             id: UUID().uuidString, bucketId: bucket.id,
-            amount: spendIsDeposit ? amt : -amt, date: todayISO(),
-            note: spendNote.isEmpty ? (spendIsDeposit ? "Deposit" : "Spending") : spendNote,
-            type: spendIsDeposit ? "adjustment" : "spend"
+            amount: -amt, date: todayISO(),
+            note: spendNote.isEmpty ? "Spending" : spendNote,
+            type: "spend"
         ))
         showSpendForm = false; spendAmt = ""; spendNote = ""
+    }
+
+    private func saveTransfer() {
+        guard let amt = Double(transferAmt), amt > 0, let otherId = transferOtherId else { return }
+        let (fromId, toId) = transferDirection == .to ? (bucket.id, otherId) : (otherId, bucket.id)
+        store.transferBetweenBuckets(fromId: fromId, toId: toId, amount: amt, note: transferNote)
+        resetTransferForm()
+    }
+
+    private func resetTransferForm() {
+        showTransferForm = false; transferAmt = ""; transferNote = ""; transferOtherId = nil
     }
 }

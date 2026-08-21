@@ -26,12 +26,17 @@ struct BalanceProvider: TimelineProvider {
         let entry = BalanceEntry(date: Date(), snapshot: WidgetBalanceStore.read())
         // The main app nudges WidgetCenter.reloadTimelines whenever it
         // fetches a fresh balance; this periodic re-check is just the
-        // fallback for when the app hasn't been opened in a while. Actual
-        // cadence is still capped by iOS's background refresh budget —
-        // that's the "(relatively) current" tradeoff of a cached-snapshot
-        // widget instead of one that calls the Tailscale-only backend
-        // directly (which background widget refreshes can't reliably do).
-        let nextCheck = Calendar.current.date(byAdding: .minute, value: 30, to: Date()) ?? Date().addingTimeInterval(1800)
+        // fallback for when the app hasn't been opened in a while. A random
+        // 10-20 minute interval (instead of a fixed 30) asks WidgetKit for
+        // the next check sooner and staggers requests instead of always
+        // landing on the same clock tick — but actual cadence is still
+        // capped by iOS's background refresh budget, which this can't
+        // bypass. That's the "(relatively) current" tradeoff of a
+        // cached-snapshot widget instead of one that calls the
+        // Tailscale-only backend directly (which background widget
+        // refreshes can't reliably do).
+        let minutes = Double.random(in: 10...20)
+        let nextCheck = Date().addingTimeInterval(minutes * 60)
         completion(Timeline(entries: [entry], policy: .after(nextCheck)))
     }
 }
