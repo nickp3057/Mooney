@@ -12,6 +12,18 @@ extension Color {
             blue:  Double( int        & 0xFF) / 255
         )
     }
+
+    // Round-trips a custom-picked color back to the "#RRGGBB" strings
+    // everything else in the app (Bucket.colorHex, accentColorHex, etc.)
+    // stores. Uses Color.Resolved (SwiftUI, iOS 17+) rather than UIColor so
+    // this file stays UIKit-free and safe for the macOS typecheck.
+    func toHex() -> String {
+        let resolved = resolve(in: EnvironmentValues())
+        let r = Int((resolved.red * 255).rounded())
+        let g = Int((resolved.green * 255).rounded())
+        let b = Int((resolved.blue * 255).rounded())
+        return String(format: "#%02X%02X%02X", r, g, b)
+    }
 }
 
 private let _currencyFmt: NumberFormatter = {

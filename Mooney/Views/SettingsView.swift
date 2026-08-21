@@ -29,66 +29,78 @@ struct SettingsView: View {
         NavigationStack {
             List {
                 if !store.isDecoyMode {
-                    Section("App Lock") {
-                        Toggle("Require PIN", isOn: Binding(
-                            get: { pinEnabled },
-                            set: { newValue in
-                                if newValue {
-                                    pinSheetKind = .real
-                                } else {
-                                    showRemovePINConfirm = true
-                                }
-                            }
-                        ))
-                        if pinEnabled {
-                            Button {
-                                pinSheetKind = .decoy
-                            } label: {
-                                HStack {
-                                    Text("Decoy PIN")
-                                    Spacer()
-                                    Text(decoyEnabled ? "Change" : "Set Up")
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
-                            .foregroundStyle(.primary)
-                            if decoyEnabled {
-                                Button("Remove Decoy PIN", role: .destructive) {
-                                    AppLockManager.removeDecoyPIN()
-                                    decoyEnabled = false
-                                }
-                            }
-                            if BiometricAuth.isAvailable {
-                                Toggle("Unlock with Face ID", isOn: Binding(
-                                    get: { faceIDEnabled },
-                                    set: { newValue in
-                                        faceIDEnabled = newValue
-                                        BiometricAuth.isEnabled = newValue
+                    Section("Security") {
+                        VStack(alignment: .leading, spacing: 14) {
+                            Toggle("Require PIN", isOn: Binding(
+                                get: { pinEnabled },
+                                set: { newValue in
+                                    if newValue {
+                                        pinSheetKind = .real
+                                    } else {
+                                        showRemovePINConfirm = true
                                     }
-                                ))
+                                }
+                            ))
+                            if pinEnabled {
+                                Divider()
+                                Button {
+                                    pinSheetKind = .decoy
+                                } label: {
+                                    HStack {
+                                        Text("Decoy PIN")
+                                        Spacer()
+                                        Text(decoyEnabled ? "Change" : "Set Up")
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                                .foregroundStyle(.primary)
+                                if decoyEnabled {
+                                    Button("Remove Decoy PIN", role: .destructive) {
+                                        AppLockManager.removeDecoyPIN()
+                                        decoyEnabled = false
+                                    }
+                                }
+                                if BiometricAuth.isAvailable {
+                                    Divider()
+                                    Toggle("Unlock with Face ID", isOn: Binding(
+                                        get: { faceIDEnabled },
+                                        set: { newValue in
+                                            faceIDEnabled = newValue
+                                            BiometricAuth.isEnabled = newValue
+                                        }
+                                    ))
+                                }
                             }
                         }
+                        .bubbleCard()
                     }
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
                 }
 
                 if !store.isDecoyMode {
                     Section("Notifications") {
-                        Toggle("Payday Reminders", isOn: Binding(
-                            get: { paydayRemindersEnabled },
-                            set: { newValue in
-                                PaydayNotifications.setEnabled(newValue, schedule: store.state.paySchedule) { granted in
-                                    paydayRemindersEnabled = granted
+                        VStack(alignment: .leading, spacing: 6) {
+                            Toggle("Payday Reminders", isOn: Binding(
+                                get: { paydayRemindersEnabled },
+                                set: { newValue in
+                                    PaydayNotifications.setEnabled(newValue, schedule: store.state.paySchedule) { granted in
+                                        paydayRemindersEnabled = granted
+                                    }
                                 }
+                            ))
+                            if paydayRemindersEnabled && store.state.paySchedule == nil {
+                                Text("Set a pay schedule to start getting reminders.")
+                                    .font(.caption).foregroundStyle(.secondary)
                             }
-                        ))
-                        if paydayRemindersEnabled && store.state.paySchedule == nil {
-                            Text("Set a pay schedule to start getting reminders.")
-                                .font(.caption).foregroundStyle(.secondary)
                         }
+                        .bubbleCard()
                     }
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
                 }
 
-                Section("Appearance") {
+                Section {
                     ColorSwatchPicker(
                         selectedHex: Binding(
                             get: { store.state.accentColorHex },
@@ -96,7 +108,14 @@ struct SettingsView: View {
                         ),
                         palette: accentPalette
                     )
+                    .bubbleCard()
+                } header: {
+                    Text("Appearance")
+                } footer: {
+                    Text("Sets the app's default color. Tap the dashed circle to pick any custom color instead of a preset.")
                 }
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
 
                 Section {
                     ForEach(AppTab.allCases) { tab in
@@ -107,6 +126,7 @@ struct SettingsView: View {
                                 Circle().fill(store.accentColor(for: tab)).frame(width: 20, height: 20)
                             }
                         }
+                        .bubbleCardRow()
                     }
                 } header: {
                     Text("Tab Colors")
@@ -114,33 +134,41 @@ struct SettingsView: View {
                     Text("Each tab can have its own color, used for its buttons, links, and highlights. Defaults to the color above.")
                 }
 
-                Section {
-                    NavigationLink("Buckets") { BucketsSettingsView() }
-                    NavigationLink("Bills") { BillsSettingsView() }
-                    NavigationLink("Credit Cards") { CreditCardsSettingsView() }
-                    NavigationLink("Income Sources") { IncomeSourcesSettingsView() }
-                    NavigationLink("Recurring Transfers") { RecurringTransfersSettingsView() }
+                Section("Manage") {
+                    NavigationLink("Buckets") { BucketsSettingsView() }.bubbleCardRow()
+                    NavigationLink("Bills") { BillsSettingsView() }.bubbleCardRow()
+                    NavigationLink("Credit Cards") { CreditCardsSettingsView() }.bubbleCardRow()
+                    NavigationLink("Income Sources") { IncomeSourcesSettingsView() }.bubbleCardRow()
+                    NavigationLink("Recurring Transfers") { RecurringTransfersSettingsView() }.bubbleCardRow()
+                    NavigationLink("Paycheck Schedule") { PayScheduleSettingsView() }.bubbleCardRow()
                 }
 
-                Section {
-                    NavigationLink("History") { HistoryView() }
-                    NavigationLink("Notes") { NotesView() }
-                    NavigationLink("Paycheck Schedule") { PayScheduleSettingsView() }
+                Section("Records") {
+                    NavigationLink("History") { HistoryView() }.bubbleCardRow()
+                    NavigationLink("Notes") { NotesView() }.bubbleCardRow()
                 }
 
                 if !store.isDecoyMode {
                     Section("Bank Connection") {
-                        NavigationLink("Connect Bank Account") { BankConnectionSettingsView() }
+                        NavigationLink("Connect Bank Account") { BankConnectionSettingsView() }.bubbleCardRow()
                     }
                 }
 
                 Section("Data") {
-                    Button("Export Backup") { startExport() }
-                    Button("Import Backup") { showImporter = true }
+                    VStack(alignment: .leading, spacing: 14) {
+                        Button("Export Backup") { startExport() }
+                        Divider()
+                        Button("Import Backup") { showImporter = true }
+                    }
+                    .bubbleCard()
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+
                     Button("Reset All Data", role: .destructive) { showResetConfirm = true }
+                        .bubbleCardRow()
                 }
             }
-            .listStyle(.insetGrouped)
+            .listStyle(.plain)
             .navigationTitle("Settings")
             .sheet(item: $pinSheetKind) { kind in
                 switch kind {

@@ -21,7 +21,7 @@ struct TabColorPickerView: View {
                         palette: accentPalette
                     )
                 } footer: {
-                    Text("Colors buttons, links, and highlights throughout \(tab.label).")
+                    Text("Colors buttons, links, and highlights throughout \(tab.label). Tap the dashed circle to pick any custom color instead of a preset.")
                 }
                 if isCustomized {
                     Section {
