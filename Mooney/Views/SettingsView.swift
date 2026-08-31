@@ -15,6 +15,7 @@ struct SettingsView: View {
     @State private var decoyEnabled = AppLockManager.isDecoyEnabled
     @State private var faceIDEnabled = BiometricAuth.isEnabled
     @State private var paydayRemindersEnabled = PaydayNotifications.isEnabled
+    @State private var transferRemindersEnabled = RecurringTransferNotifications.isEnabled
     @State private var pinSheetKind: PINSheetKind?
     @State private var showRemovePINConfirm = false
     @State private var editingColorTab: AppTab?
@@ -30,74 +31,14 @@ struct SettingsView: View {
             List {
                 if !store.isDecoyMode {
                     Section("Security") {
-                        VStack(alignment: .leading, spacing: 14) {
-                            Toggle("Require PIN", isOn: Binding(
-                                get: { pinEnabled },
-                                set: { newValue in
-                                    if newValue {
-                                        pinSheetKind = .real
-                                    } else {
-                                        showRemovePINConfirm = true
-                                    }
-                                }
-                            ))
-                            if pinEnabled {
-                                Divider()
-                                Button {
-                                    pinSheetKind = .decoy
-                                } label: {
-                                    HStack {
-                                        Text("Decoy PIN")
-                                        Spacer()
-                                        Text(decoyEnabled ? "Change" : "Set Up")
-                                            .foregroundStyle(.secondary)
-                                    }
-                                }
-                                .foregroundStyle(.primary)
-                                if decoyEnabled {
-                                    Button("Remove Decoy PIN", role: .destructive) {
-                                        AppLockManager.removeDecoyPIN()
-                                        decoyEnabled = false
-                                    }
-                                }
-                                if BiometricAuth.isAvailable {
-                                    Divider()
-                                    Toggle("Unlock with Face ID", isOn: Binding(
-                                        get: { faceIDEnabled },
-                                        set: { newValue in
-                                            faceIDEnabled = newValue
-                                            BiometricAuth.isEnabled = newValue
-                                        }
-                                    ))
-                                }
-                            }
-                        }
-                        .bubbleCard()
+                        securityCard.bubbleCard()
                     }
-                    .listRowBackground(Color.clear)
-                    .listRowSeparator(.hidden)
-                }
+                    .plainCardSection()
 
-                if !store.isDecoyMode {
                     Section("Notifications") {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Toggle("Payday Reminders", isOn: Binding(
-                                get: { paydayRemindersEnabled },
-                                set: { newValue in
-                                    PaydayNotifications.setEnabled(newValue, schedule: store.state.paySchedule) { granted in
-                                        paydayRemindersEnabled = granted
-                                    }
-                                }
-                            ))
-                            if paydayRemindersEnabled && store.state.paySchedule == nil {
-                                Text("Set a pay schedule to start getting reminders.")
-                                    .font(.caption).foregroundStyle(.secondary)
-                            }
-                        }
-                        .bubbleCard()
+                        notificationsCard.bubbleCard()
                     }
-                    .listRowBackground(Color.clear)
-                    .listRowSeparator(.hidden)
+                    .plainCardSection()
                 }
 
                 Section {
@@ -112,26 +53,20 @@ struct SettingsView: View {
                 } header: {
                     Text("Appearance")
                 } footer: {
-                    Text("Sets the app's default color. Tap the dashed circle to pick any custom color instead of a preset.")
+                    Text("Sets the app's default color. Tap the dashed circle to add a custom color, saved for reuse everywhere.")
+                        .foregroundStyle(Color.helperText)
                 }
-                .listRowBackground(Color.clear)
-                .listRowSeparator(.hidden)
+                .plainCardSection()
 
                 Section {
                     ForEach(AppTab.allCases) { tab in
-                        Button { editingColorTab = tab } label: {
-                            HStack {
-                                Text(tab.label).foregroundStyle(.primary)
-                                Spacer()
-                                Circle().fill(store.accentColor(for: tab)).frame(width: 20, height: 20)
-                            }
-                        }
-                        .bubbleCardRow()
+                        tabColorRow(tab).bubbleCardRow()
                     }
                 } header: {
                     Text("Tab Colors")
                 } footer: {
                     Text("Each tab can have its own color, used for its buttons, links, and highlights. Defaults to the color above.")
+                        .foregroundStyle(Color.helperText)
                 }
 
                 Section("Manage") {
@@ -155,18 +90,9 @@ struct SettingsView: View {
                 }
 
                 Section("Data") {
-                    VStack(alignment: .leading, spacing: 14) {
-                        Button("Export Backup") { startExport() }
-                        Divider()
-                        Button("Import Backup") { showImporter = true }
-                    }
-                    .bubbleCard()
-                    .listRowBackground(Color.clear)
-                    .listRowSeparator(.hidden)
-
-                    Button("Reset All Data", role: .destructive) { showResetConfirm = true }
-                        .bubbleCardRow()
+                    dataCard.bubbleCard()
                 }
+                .plainCardSection()
             }
             .listStyle(.plain)
             .navigationTitle("Settings")
@@ -244,6 +170,106 @@ struct SettingsView: View {
             }
         }
         .environment(\.tabAccentColor, accentColor)
+    }
+
+    // Each `*Card` is a plain VStack of controls wrapped by the caller in
+    // `.bubbleCard()`. They're separate properties only to keep the `body`
+    // expression small enough for the type-checker — inlining any one of
+    // them pushes the whole List over its time limit.
+
+    @ViewBuilder
+    private var securityCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Toggle("Require PIN", isOn: Binding(
+                get: { pinEnabled },
+                set: { newValue in
+                    if newValue { pinSheetKind = .real } else { showRemovePINConfirm = true }
+                }
+            ))
+            if pinEnabled {
+                Divider()
+                Button {
+                    pinSheetKind = .decoy
+                } label: {
+                    HStack {
+                        Text("Decoy PIN")
+                        Spacer()
+                        Text(decoyEnabled ? "Change" : "Set Up").foregroundStyle(.secondary)
+                    }
+                }
+                .foregroundStyle(.primary)
+                if decoyEnabled {
+                    Divider()
+                    Button("Remove Decoy PIN", role: .destructive) {
+                        AppLockManager.removeDecoyPIN()
+                        decoyEnabled = false
+                    }
+                }
+                if BiometricAuth.isAvailable {
+                    Divider()
+                    Toggle("Unlock with Face ID", isOn: Binding(
+                        get: { faceIDEnabled },
+                        set: { newValue in
+                            faceIDEnabled = newValue
+                            BiometricAuth.isEnabled = newValue
+                        }
+                    ))
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var notificationsCard: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Toggle("Payday Reminders", isOn: Binding(
+                get: { paydayRemindersEnabled },
+                set: { newValue in
+                    PaydayNotifications.setEnabled(newValue, schedule: store.state.paySchedule) { granted in
+                        paydayRemindersEnabled = granted
+                    }
+                }
+            ))
+            if paydayRemindersEnabled && store.state.paySchedule == nil {
+                Text("Set a pay schedule to start getting reminders.")
+                    .font(.caption).foregroundStyle(Color.helperText)
+            }
+            Divider()
+            Toggle("Recurring Transfer Reminders", isOn: Binding(
+                get: { transferRemindersEnabled },
+                set: { newValue in
+                    RecurringTransferNotifications.setEnabled(newValue, transfers: store.state.recurringTransfers) { granted in
+                        transferRemindersEnabled = granted
+                    }
+                }
+            ))
+            if transferRemindersEnabled && !store.state.recurringTransfers.contains(where: { $0.isActive }) {
+                Text("Turn on a recurring transfer to start getting reminders.")
+                    .font(.caption).foregroundStyle(Color.helperText)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var dataCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Button("Export Backup") { startExport() }
+            Divider()
+            Button("Import Backup") { showImporter = true }
+            Divider()
+            Button("Reset All Data", role: .destructive) { showResetConfirm = true }
+        }
+    }
+
+    @ViewBuilder
+    private func tabColorRow(_ tab: AppTab) -> some View {
+        Button { editingColorTab = tab } label: {
+            HStack {
+                Text(tab.label).foregroundStyle(.primary)
+                Spacer()
+                Circle().fill(store.accentColor(for: tab)).frame(width: 20, height: 20)
+            }
+        }
     }
 
     private func startExport() {

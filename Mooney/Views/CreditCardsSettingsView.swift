@@ -21,7 +21,7 @@ struct CreditCardsSettingsView: View {
                     .foregroundStyle(accentColor)
             }
         }
-        .listStyle(.insetGrouped)
+        .listStyle(.plain)
         .navigationTitle("Credit Cards")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $editingCard) { CreditCardEditView(card: $0) }

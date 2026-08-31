@@ -6,6 +6,12 @@ class AppStore {
     static let storageKey = "moonay_v2"
     static let decoyStorageKey = "moonay_decoy_v1"
 
+    // One instance shared by the UI and the background-refresh handler
+    // (MoonayApp) so a BGAppRefreshTask run and the next foreground
+    // catch-up operate on the same state — two separate stores would each
+    // hold their own stale lastRunDate and double-post occurrences.
+    static let shared = AppStore()
+
     var state: AppState
     var isDecoyMode = false
     var isLocked: Bool
@@ -98,6 +104,7 @@ class AppStore {
         runScheduledTransfers()
         ensureCardPayments()
         PaydayNotifications.reschedule(from: state.paySchedule)
+        RecurringTransferNotifications.reschedule(from: state.recurringTransfers)
     }
 
     // Data saved before the general-bucket concept existed has no bucket
@@ -145,6 +152,17 @@ class AppStore {
         save()
     }
 
+    func addCustomColor(hex: String) {
+        guard !state.customColorHexes.contains(where: { $0.uppercased() == hex.uppercased() }) else { return }
+        state.customColorHexes.append(hex)
+        save()
+    }
+
+    func removeCustomColor(hex: String) {
+        state.customColorHexes.removeAll { $0.uppercased() == hex.uppercased() }
+        save()
+    }
+
     // ── Mutations ──
 
     func addIncome(_ p: Income)      { state.incomes.append(p); save() }
@@ -170,7 +188,7 @@ class AppStore {
     func addBill(_ b: Bill)              { state.bills.append(b); save() }
     func deleteBill(id: String)          { state.bills.removeAll { $0.id == id }; save() }
 
-    func updateBucket(id: String, name: String, colorHex: String, goal: Double?, goalDate: String?, isSpending: Bool, allocationPercent: Double?, allocationAmount: Double?) {
+    func updateBucket(id: String, name: String, colorHex: String, goal: Double?, goalDate: String?, isSpending: Bool, allocationPercent: Double?, allocationAmount: Double?, iconName: String?) {
         guard let i = state.buckets.firstIndex(where: { $0.id == id }) else { return }
         state.buckets[i].name = name
         state.buckets[i].colorHex = colorHex
@@ -178,6 +196,7 @@ class AppStore {
         state.buckets[i].goalDate = goalDate
         state.buckets[i].allocationPercent = allocationPercent
         state.buckets[i].allocationAmount = allocationAmount
+        state.buckets[i].iconName = iconName
         // The general bucket must stay a savings bucket — it's what makes
         // bucket balances always sum to total savings.
         if !state.buckets[i].isGeneral {
@@ -249,19 +268,35 @@ class AppStore {
         state.recurringTransfers.sorted { $0.name < $1.name }
     }
 
-    func addRecurringTransfer(_ t: RecurringTransfer) { state.recurringTransfers.append(t); save() }
-    func deleteRecurringTransfer(id: String)           { state.recurringTransfers.removeAll { $0.id == id }; save() }
+    func addRecurringTransfer(_ t: RecurringTransfer) {
+        state.recurringTransfers.append(t)
+        save()
+        RecurringTransferNotifications.reschedule(from: state.recurringTransfers)
+    }
+
+    func deleteRecurringTransfer(id: String) {
+        state.recurringTransfers.removeAll { $0.id == id }
+        save()
+        RecurringTransferNotifications.reschedule(from: state.recurringTransfers)
+    }
 
     func updateRecurringTransfer(_ t: RecurringTransfer) {
         guard let i = state.recurringTransfers.firstIndex(where: { $0.id == t.id }) else { return }
         state.recurringTransfers[i] = t
         save()
+        runScheduledTransfers()
+        RecurringTransferNotifications.reschedule(from: state.recurringTransfers)
     }
 
+    // Flipping a transfer back on should immediately post anything that came
+    // due while it was paused, rather than waiting for the next launch/
+    // foreground catch-up.
     func toggleRecurringTransferActive(id: String) {
         guard let i = state.recurringTransfers.firstIndex(where: { $0.id == id }) else { return }
         state.recurringTransfers[i].isActive.toggle()
         save()
+        runScheduledTransfers()
+        RecurringTransferNotifications.reschedule(from: state.recurringTransfers)
     }
 
     // Catches up every elapsed occurrence since each transfer's last run —
@@ -284,12 +319,21 @@ class AppStore {
 
             while nextDue <= today {
                 let transfer = state.recurringTransfers[i]
+                let note: String
+                let amount: Double
+                if let destination = transfer.externalDestination {
+                    note = "\(transfer.name) → \(destination) · auto-transfer"
+                    amount = -transfer.amount
+                } else {
+                    note = "\(transfer.name) · auto-transfer"
+                    amount = transfer.amount
+                }
                 state.transactions.append(AppTransaction(
                     id: UUID().uuidString,
                     bucketId: transfer.bucketId,
-                    amount: transfer.amount,
+                    amount: amount,
                     date: isoDateFormatter.string(from: nextDue),
-                    note: "\(transfer.name) · auto-transfer",
+                    note: note,
                     type: "transfer"
                 ))
                 state.recurringTransfers[i].lastRunDate = isoDateFormatter.string(from: nextDue)
@@ -739,6 +783,30 @@ class AppStore {
             ))
         }
         for t in state.transactions.reversed() {
+            // Ad-hoc bucket-to-bucket transfers are stored as two paired legs
+            // (see transferBetweenBuckets) and carry a linkedId — emit one
+            // combined "A → B" entry from the outgoing leg and skip the
+            // linked incoming leg. Recurring-transfer-originated transactions
+            // also use type "transfer" but are single, unlinked legs (see
+            // runScheduledTransfers), so they fall through to the normal
+            // single-entry path below instead of being merged/dropped here.
+            if t.type == "transfer", let linkedId = t.linkedId {
+                guard t.amount < 0 else { continue }
+                let fromBucket = state.buckets.first { $0.id == t.bucketId }
+                let toBucket = state.transactions.first { $0.id == linkedId }
+                    .flatMap { inLeg in state.buckets.first { $0.id == inLeg.bucketId } }
+                items.append(LedgerEntry(
+                    id: t.id,
+                    date: t.date,
+                    title: t.note.isEmpty ? "Transfer" : t.note,
+                    subtitle: "\(fromBucket?.name ?? "Bucket") → \(toBucket?.name ?? "Bucket")",
+                    amount: -t.amount,
+                    bucketId: nil,
+                    colorHex: "#8E8E93",
+                    isTransfer: true
+                ))
+                continue
+            }
             let bucket = state.buckets.first { $0.id == t.bucketId }
             items.append(LedgerEntry(
                 id: t.id,

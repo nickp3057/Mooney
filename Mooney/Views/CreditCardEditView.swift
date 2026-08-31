@@ -40,6 +40,7 @@ struct CreditCardEditView: View {
                     .pickerStyle(.menu)
                 } footer: {
                     Text("The day of the month this card's payment is due. In months without that day, it's due on the last day instead.")
+                        .foregroundStyle(Color.helperText)
                 }
                 Section {
                     Button("Delete Card", role: .destructive) { showDelete = true }

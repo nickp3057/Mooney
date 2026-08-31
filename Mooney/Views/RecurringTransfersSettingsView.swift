@@ -21,7 +21,7 @@ struct RecurringTransfersSettingsView: View {
                     .foregroundStyle(accentColor)
             }
         }
-        .listStyle(.insetGrouped)
+        .listStyle(.plain)
         .navigationTitle("Recurring Transfers")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $editingTransfer) { RecurringTransferEditView(transfer: $0) }

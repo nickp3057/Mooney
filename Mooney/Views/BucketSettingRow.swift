@@ -18,8 +18,7 @@ struct BucketSettingRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            RoundedRectangle(cornerRadius: 7)
-                .fill(bucket.color).frame(width: 26, height: 26)
+            BucketBadge(bucket: bucket, size: 26)
             VStack(alignment: .leading, spacing: 2) {
                 Text(bucket.name)
                 Text(meta).font(.caption).foregroundStyle(.secondary)

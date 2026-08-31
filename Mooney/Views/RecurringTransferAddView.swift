@@ -9,6 +9,10 @@ struct RecurringTransferAddView: View {
     @State private var bucketId: String?
     @State private var frequency: TransferFrequency = .weekly
     @State private var startDate = Date()
+    @State private var isExternal = false
+    @State private var destination = ""
+
+    private var trimmedDestination: String { destination.trimmingCharacters(in: .whitespaces) }
 
     var body: some View {
         NavigationStack {
@@ -26,7 +30,7 @@ struct RecurringTransferAddView: View {
                             .multilineTextAlignment(.trailing)
                             .frame(width: 90)
                     }
-                    Picker("To Bucket", selection: $bucketId) {
+                    Picker(isExternal ? "From Bucket" : "To Bucket", selection: $bucketId) {
                         Text("Choose…").tag(String?.none)
                         ForEach(store.activeBuckets) { bucket in
                             Text(bucket.name).tag(String?.some(bucket.id))
@@ -41,6 +45,29 @@ struct RecurringTransferAddView: View {
                     .pickerStyle(.menu)
                     DatePicker("Starting", selection: $startDate, displayedComponents: .date)
                 }
+                Section {
+                    Toggle("Leaves Mooney", isOn: $isExternal)
+                    if isExternal {
+                        HStack {
+                            Text("Destination"); Spacer()
+                            TextField("e.g. CD, Charles Schwab", text: $destination)
+                                .multilineTextAlignment(.trailing)
+                        }
+                        HStack(spacing: 8) {
+                            ForEach(["CD", "Charles Schwab"], id: \.self) { preset in
+                                Button(preset) { destination = preset }
+                                    .font(.caption.weight(.semibold))
+                                    .buttonStyle(.bordered)
+                            }
+                            Spacer()
+                        }
+                    }
+                } footer: {
+                    Text(isExternal
+                         ? "Each occurrence pulls the amount out of the bucket above and out of your savings total for good — for money moving somewhere Mooney doesn't track, like a CD or an outside brokerage."
+                         : "Each occurrence deposits the amount into the bucket above.")
+                        .foregroundStyle(Color.helperText)
+                }
             }
             .navigationTitle("New Recurring Transfer")
             .navigationBarTitleDisplayMode(.inline)
@@ -50,6 +77,7 @@ struct RecurringTransferAddView: View {
                     Button("Add") {
                         let trimmed = name.trimmingCharacters(in: .whitespaces)
                         guard !trimmed.isEmpty, let amount = Double(amountStr), amount > 0, let bucketId else { return }
+                        guard !isExternal || !trimmedDestination.isEmpty else { return }
                         store.addRecurringTransfer(RecurringTransfer(
                             id: UUID().uuidString,
                             name: trimmed,
@@ -58,13 +86,14 @@ struct RecurringTransferAddView: View {
                             frequency: frequency,
                             startDate: isoDateFormatter.string(from: startDate),
                             lastRunDate: nil,
-                            isActive: true
+                            isActive: true,
+                            externalDestination: isExternal ? trimmedDestination : nil
                         ))
                         store.runScheduledTransfers()
                         dismiss()
                     }
                     .fontWeight(.semibold)
-                    .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty || Double(amountStr) == nil || bucketId == nil)
+                    .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty || Double(amountStr) == nil || bucketId == nil || (isExternal && trimmedDestination.isEmpty))
                 }
             }
         }

@@ -15,8 +15,12 @@ struct AppState: Codable {
     var paySchedule: PaySchedule?
     var creditCards: [CreditCard]
     var cardPayments: [CardPayment]
+    // User-saved custom colors from any ColorSwatchPicker's "add custom"
+    // slot, shared across every context (accent, tab, bucket) so picking one
+    // once makes it available everywhere going forward.
+    var customColorHexes: [String]
 
-    init(buckets: [Bucket], incomes: [Income], transactions: [AppTransaction], bills: [Bill] = seedBills, accentColorHex: String = defaultAccentHex, tabAccentColors: [String: String] = [:], incomeSources: [IncomeSource] = seedIncomeSources, recurringTransfers: [RecurringTransfer] = [], subscriptions: [Subscription] = [], paySchedule: PaySchedule? = nil, creditCards: [CreditCard] = [], cardPayments: [CardPayment] = []) {
+    init(buckets: [Bucket], incomes: [Income], transactions: [AppTransaction], bills: [Bill] = seedBills, accentColorHex: String = defaultAccentHex, tabAccentColors: [String: String] = [:], incomeSources: [IncomeSource] = seedIncomeSources, recurringTransfers: [RecurringTransfer] = [], subscriptions: [Subscription] = [], paySchedule: PaySchedule? = nil, creditCards: [CreditCard] = [], cardPayments: [CardPayment] = [], customColorHexes: [String] = []) {
         self.buckets = buckets
         self.incomes = incomes
         self.transactions = transactions
@@ -29,12 +33,13 @@ struct AppState: Codable {
         self.paySchedule = paySchedule
         self.creditCards = creditCards
         self.cardPayments = cardPayments
+        self.customColorHexes = customColorHexes
     }
 
     enum CodingKeys: String, CodingKey {
         // "incomes" kept on the wire as "paychecks" so existing saved data
         // (and exported backups) still decode without a migration.
-        case buckets, incomes = "paychecks", transactions, bills, accentColorHex, tabAccentColors, incomeSources, recurringTransfers, subscriptions, paySchedule, creditCards, cardPayments
+        case buckets, incomes = "paychecks", transactions, bills, accentColorHex, tabAccentColors, incomeSources, recurringTransfers, subscriptions, paySchedule, creditCards, cardPayments, customColorHexes
     }
 
     init(from decoder: Decoder) throws {
@@ -51,5 +56,6 @@ struct AppState: Codable {
         paySchedule = try container.decodeIfPresent(PaySchedule.self, forKey: .paySchedule)
         creditCards = try container.decodeIfPresent([CreditCard].self, forKey: .creditCards) ?? []
         cardPayments = try container.decodeIfPresent([CardPayment].self, forKey: .cardPayments) ?? []
+        customColorHexes = try container.decodeIfPresent([String].self, forKey: .customColorHexes) ?? []
     }
 }

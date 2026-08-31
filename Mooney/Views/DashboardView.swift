@@ -199,13 +199,20 @@ struct DashboardView: View {
                             // yet), but a negative gap means the ledger
                             // thinks there's money that isn't really there.
                             if let plaidDiscrepancy {
-                                Text(plaidDiscrepancy.message)
-                                    .font(.caption2.weight(.semibold))
-                                    .foregroundStyle(plaidDiscrepancy.isOver ? Color.secondary : Color.red)
-                                    .padding(.top, 1)
-                            }
-
-                            if plaidBalance?.current != nil {
+                                HStack(spacing: 8) {
+                                    Text(plaidDiscrepancy.message)
+                                        .font(.caption2.weight(.semibold))
+                                        .foregroundStyle(plaidDiscrepancy.isOver ? Color.secondary : Color.red)
+                                    if plaidBalance?.current != nil {
+                                        Spacer(minLength: 8)
+                                        Button("Adjust Buckets") { showAdjustBuckets = true }
+                                            .font(.caption2.weight(.semibold))
+                                            .foregroundStyle(accentColor)
+                                            .buttonStyle(.plain)
+                                    }
+                                }
+                                .padding(.top, 1)
+                            } else if plaidBalance?.current != nil {
                                 Button("Adjust Buckets") { showAdjustBuckets = true }
                                     .font(.caption2.weight(.semibold))
                                     .foregroundStyle(accentColor)
@@ -231,24 +238,36 @@ struct DashboardView: View {
                 // ── Bucket quick access ── Spending buckets (e.g. a
                 // "Checking" pass-through) are deliberately excluded — they're
                 // not meant to carry a tracked total, so they don't belong in
-                // a strip that implies one.
+                // a strip that implies one. The general "main savings" bucket
+                // gets its own full-width row above the 2-across grid of
+                // everything else, Reminders-list style.
                 if !store.savingsBuckets.isEmpty {
-                    Section {
-                        LazyVGrid(
-                            columns: [GridItem(.flexible(), alignment: .leading), GridItem(.flexible(), alignment: .leading)],
-                            alignment: .leading,
-                            spacing: 6
-                        ) {
-                            ForEach(store.savingsBuckets) { bucket in
-                                BucketChip(bucket: bucket) { selectedBucket = bucket }
+                    let generalBucket = store.savingsBuckets.first { $0.isGeneral }
+                    let otherBuckets = store.savingsBuckets.filter { !$0.isGeneral }
+
+                    if let generalBucket {
+                        Section {
+                            BucketHeroRow(bucket: generalBucket) { selectedBucket = generalBucket }
+                        }
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                    }
+
+                    if !otherBuckets.isEmpty {
+                        Section {
+                            LazyVGrid(
+                                columns: [GridItem(.flexible(), alignment: .leading), GridItem(.flexible(), alignment: .leading)],
+                                alignment: .leading,
+                                spacing: 8
+                            ) {
+                                ForEach(otherBuckets) { bucket in
+                                    BucketChip(bucket: bucket) { selectedBucket = bucket }
+                                }
                             }
                         }
-                        .padding(.top, 2)
-                        .padding(.bottom, 4)
-                        .bubbleCard()
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
                     }
-                    .listRowBackground(Color.clear)
-                    .listRowSeparator(.hidden)
                 }
 
                 if !store.currentCardPayments.isEmpty {
@@ -304,9 +323,16 @@ struct DashboardView: View {
                     Section(group.label) {
                         ForEach(group.entries) { entry in
                             HStack(spacing: 10) {
-                                RoundedRectangle(cornerRadius: 2)
-                                    .fill(entry.color)
-                                    .frame(width: 10, height: 10)
+                                if entry.isTransfer {
+                                    Image(systemName: "arrow.left.arrow.right.circle.fill")
+                                        .font(.system(size: 20))
+                                        .foregroundStyle(.secondary)
+                                        .frame(width: 20, height: 20)
+                                } else {
+                                    RoundedRectangle(cornerRadius: 2)
+                                        .fill(entry.color)
+                                        .frame(width: 10, height: 10)
+                                }
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(entry.title)
                                     Text(entry.subtitle)
@@ -314,10 +340,17 @@ struct DashboardView: View {
                                         .foregroundStyle(.secondary)
                                 }
                                 Spacer()
-                                Text((entry.amount >= 0 ? "+" : "") + fmt(entry.amount))
-                                    .fontWeight(.semibold)
-                                    .monospacedDigit()
-                                    .foregroundStyle(entry.amount >= 0 ? .green : .red)
+                                if entry.isTransfer {
+                                    Text(fmt(entry.amount))
+                                        .fontWeight(.semibold)
+                                        .monospacedDigit()
+                                        .foregroundStyle(.secondary)
+                                } else {
+                                    Text((entry.amount >= 0 ? "+" : "") + fmt(entry.amount))
+                                        .fontWeight(.semibold)
+                                        .monospacedDigit()
+                                        .foregroundStyle(entry.amount >= 0 ? .green : .red)
+                                }
                             }
                             .contentShape(Rectangle())
                             .onTapGesture {

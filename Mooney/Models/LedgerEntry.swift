@@ -8,6 +8,7 @@ struct LedgerEntry: Identifiable {
     var amount: Double
     var bucketId: String?
     var colorHex: String
+    var isTransfer: Bool = false
 
     var color: Color { Color(hex: colorHex) }
 }

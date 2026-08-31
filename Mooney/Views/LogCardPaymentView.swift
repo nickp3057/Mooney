@@ -57,12 +57,14 @@ struct LogCardPaymentView: View {
                     .disabled(Double(amountStr) == nil)
                 } footer: {
                     Text("Pulls straight from primary savings. Log as many partial payments as you need.")
+                        .foregroundStyle(Color.helperText)
                 }
 
                 Section {
                     Button("Mark Paid Off", role: .destructive) { showMarkPaidConfirm = true }
                 } footer: {
                     Text("Closes out this cycle and rolls \(card?.name ?? "this card") forward to its next due date, regardless of the amount paid so far.")
+                        .foregroundStyle(Color.helperText)
                 }
             }
             .navigationTitle("Log Payment")

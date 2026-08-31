@@ -33,6 +33,7 @@ struct BankConnectionSettingsView: View {
                 Text("Backend URL")
             } footer: {
                 Text("The Tailscale address of your Mooney Plaid backend.")
+                    .foregroundStyle(Color.helperText)
             }
 
             Section {
@@ -43,6 +44,7 @@ struct BankConnectionSettingsView: View {
                 Text("Bank Name")
             } footer: {
                 Text("Used anywhere the app refers to your connected bank, like \"Checking\" and \"Correct Balance.\"")
+                    .foregroundStyle(Color.helperText)
             }
 
             Section {
@@ -53,6 +55,7 @@ struct BankConnectionSettingsView: View {
                 Text(autoSyncBalance
                      ? "The top balance follows your live \(bankDisplayName.isEmpty ? "bank" : bankDisplayName) balance directly, and Mooney tells you how much of it is unallocated."
                      : "The top balance stays based on your buckets. Mooney flags it when that total doesn't match your live \(bankDisplayName.isEmpty ? "bank" : bankDisplayName) balance.")
+                    .foregroundStyle(Color.helperText)
             }
 
             Section {
@@ -103,6 +106,7 @@ struct BankConnectionSettingsView: View {
                     Text("Lock Screen Widget")
                 } footer: {
                     Text("Which connected account the lock screen widget shows — can be different from the balance shown on the Dashboard.")
+                        .foregroundStyle(Color.helperText)
                 }
             }
         }

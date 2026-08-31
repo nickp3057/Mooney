@@ -10,7 +10,7 @@ struct IncomeSourcesSettingsView: View {
             Section {
                 ForEach(store.state.incomeSources) { source in
                     HStack(spacing: 12) {
-                        Image(systemName: "banknote.fill")
+                        Image(systemName: "dollarsign.circle.fill")
                             .foregroundStyle(accentColor)
                             .frame(width: 26, height: 26)
                         Text(source.name)
@@ -27,7 +27,7 @@ struct IncomeSourcesSettingsView: View {
                     .foregroundStyle(accentColor)
             }
         }
-        .listStyle(.insetGrouped)
+        .listStyle(.plain)
         .navigationTitle("Income Sources")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showAddSource) { IncomeSourceAddView() }

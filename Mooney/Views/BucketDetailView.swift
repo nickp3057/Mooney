@@ -165,7 +165,7 @@ private struct BucketDetailContent: View {
         if bucket.isSpending {
             Section {
                 Text("This is your spending account. Allocations are logged each income — no need to track individual purchases here.")
-                    .font(.callout).foregroundStyle(.secondary)
+                    .font(.callout).foregroundStyle(Color.helperText)
                     .bubbleCard()
             }
             .listRowBackground(Color.clear)
@@ -219,17 +219,31 @@ private struct BucketDetailContent: View {
                         }
                     } else {
                         HStack(spacing: 10) {
-                            Button("Record Spending") { showSpendForm = true }
-                                .foregroundStyle(bucket.color)
+                            Button {
+                                showSpendForm = true
+                            } label: {
+                                Label("Spend", systemImage: "minus.circle")
+                                    .lineLimit(1)
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(bucket.color)
+
                             if !transferTargets.isEmpty {
-                                Button("Transfer") {
+                                Button {
                                     transferDirection = .to
                                     transferOtherId = transferTargets.first?.id
                                     showTransferForm = true
+                                } label: {
+                                    Label("Transfer", systemImage: "arrow.left.arrow.right")
+                                        .frame(maxWidth: .infinity)
                                 }
-                                .foregroundStyle(bucket.color)
+                                .buttonStyle(.bordered)
+                                .tint(bucket.color)
                             }
                         }
+                        .labelStyle(.titleAndIcon)
+                        .font(.subheadline)
                     }
                 }
                 .bubbleCard()

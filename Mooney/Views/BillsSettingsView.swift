@@ -21,7 +21,7 @@ struct BillsSettingsView: View {
                     .foregroundStyle(accentColor)
             }
         }
-        .listStyle(.insetGrouped)
+        .listStyle(.plain)
         .navigationTitle("Bills")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $editingBill) { BillEditView(bill: $0) }

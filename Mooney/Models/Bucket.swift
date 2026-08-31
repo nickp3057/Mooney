@@ -20,10 +20,14 @@ struct Bucket: Identifiable, Codable, Equatable, Hashable {
     // or a fixed dollar amount.
     var allocationPercent: Double?
     var allocationAmount: Double?
+    // SF Symbol name shown next to the bucket's color, e.g. in a Reminders-
+    // list-style badge. Nil means "just the color" — buckets whose name
+    // already carries an emoji don't need a redundant icon forced on them.
+    var iconName: String?
 
     var color: Color { Color(hex: colorHex) }
 
-    init(id: String, name: String, colorHex: String, isActive: Bool, archived: Bool, goal: Double?, goalDate: String? = nil, isSpending: Bool, order: Int, isGeneral: Bool = false, allocationPercent: Double? = nil, allocationAmount: Double? = nil) {
+    init(id: String, name: String, colorHex: String, isActive: Bool, archived: Bool, goal: Double?, goalDate: String? = nil, isSpending: Bool, order: Int, isGeneral: Bool = false, allocationPercent: Double? = nil, allocationAmount: Double? = nil, iconName: String? = nil) {
         self.id = id
         self.name = name
         self.colorHex = colorHex
@@ -36,10 +40,11 @@ struct Bucket: Identifiable, Codable, Equatable, Hashable {
         self.isGeneral = isGeneral
         self.allocationPercent = allocationPercent
         self.allocationAmount = allocationAmount
+        self.iconName = iconName
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, name, colorHex, isActive, archived, goal, goalDate, isSpending, order, isGeneral, allocationPercent, allocationAmount
+        case id, name, colorHex, isActive, archived, goal, goalDate, isSpending, order, isGeneral, allocationPercent, allocationAmount, iconName
     }
 
     init(from decoder: Decoder) throws {
@@ -56,5 +61,6 @@ struct Bucket: Identifiable, Codable, Equatable, Hashable {
         isGeneral = try container.decodeIfPresent(Bool.self, forKey: .isGeneral) ?? false
         allocationPercent = try container.decodeIfPresent(Double.self, forKey: .allocationPercent)
         allocationAmount = try container.decodeIfPresent(Double.self, forKey: .allocationAmount)
+        iconName = try container.decodeIfPresent(String.self, forKey: .iconName)
     }
 }

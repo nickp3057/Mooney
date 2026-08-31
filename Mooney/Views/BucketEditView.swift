@@ -15,6 +15,7 @@ struct BucketEditView: View {
 
     @State private var name:       String
     @State private var selectedColorHex: String
+    @State private var selectedIcon: String?
     @State private var goalStr:    String
     @State private var hasGoalDate: Bool
     @State private var goalDate: Date
@@ -29,6 +30,7 @@ struct BucketEditView: View {
         self.bucket   = bucket
         _name         = State(initialValue: bucket.name)
         _selectedColorHex = State(initialValue: bucket.colorHex)
+        _selectedIcon = State(initialValue: bucket.iconName)
         _goalStr      = State(initialValue: bucket.goal.map { String($0) } ?? "")
         _hasGoalDate  = State(initialValue: bucket.goalDate != nil)
         _goalDate     = State(initialValue: bucket.goalDate.flatMap { isoDateFormatter.date(from: $0) } ?? Date())
@@ -58,6 +60,7 @@ struct BucketEditView: View {
                         TextField("Bucket name", text: $name).multilineTextAlignment(.trailing)
                     }
                     ColorSwatchPicker(selectedHex: $selectedColorHex)
+                    BucketIconPicker(selectedIcon: $selectedIcon, colorHex: selectedColorHex)
                     HStack {
                         Text("Savings Goal"); Spacer()
                         Text("$").foregroundStyle(.secondary)
@@ -100,11 +103,12 @@ struct BucketEditView: View {
                     Text("Intended Allocation")
                 } footer: {
                     Text("Shows a quick-fill suggestion for this bucket when adding income.")
+                        .foregroundStyle(Color.helperText)
                 }
                 if bucket.isGeneral {
                     Section {
                         Text("This is the general savings bucket — any income you don't explicitly allocate settles here, so it can't be archived or deleted.")
-                            .font(.caption).foregroundStyle(.secondary)
+                            .font(.caption).foregroundStyle(Color.helperText)
                     }
                 } else {
                     Section {
@@ -125,7 +129,8 @@ struct BucketEditView: View {
                                            goalDate: hasGoalDate ? isoDateFormatter.string(from: goalDate) : nil,
                                            isSpending: isSpending,
                                            allocationPercent: allocationMode == .percent ? Double(allocationPercentStr) : nil,
-                                           allocationAmount: allocationMode == .fixed ? Double(allocationAmountStr) : nil)
+                                           allocationAmount: allocationMode == .fixed ? Double(allocationAmountStr) : nil,
+                                           iconName: selectedIcon)
                         dismiss()
                     }.fontWeight(.semibold)
                 }

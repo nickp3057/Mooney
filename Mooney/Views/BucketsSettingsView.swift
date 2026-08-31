@@ -46,7 +46,7 @@ struct BucketsSettingsView: View {
                 }
             }
         }
-        .listStyle(.insetGrouped)
+        .listStyle(.plain)
         .navigationTitle("Buckets")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { EditButton() }

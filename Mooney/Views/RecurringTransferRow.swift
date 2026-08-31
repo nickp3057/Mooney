@@ -10,6 +10,19 @@ struct RecurringTransferRow: View {
         store.state.buckets.first { $0.id == transfer.bucketId }?.name ?? transfer.bucketId
     }
 
+    // Shows whether the transfer is armed and when it will next fire, so
+    // it's obvious at a glance if it's paused or has an occurrence that
+    // hasn't posted yet (the engine only catches up on launch/foreground).
+    var scheduleNote: String {
+        guard transfer.isActive else { return "Paused — won't auto-run" }
+        guard let next = transfer.nextDueDate() else { return "" }
+        let nextISO = isoDateFormatter.string(from: next)
+        let ran = transfer.lastRunDate.map { " · last ran \(fmtDueDate($0))" } ?? ""
+        return next <= Date()
+            ? "Due \(fmtDueDate(nextISO)) — open app to sync\(ran)"
+            : "Next \(fmtDueDate(nextISO))\(ran)"
+    }
+
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: "arrow.triangle.2.circlepath")
@@ -17,8 +30,18 @@ struct RecurringTransferRow: View {
                 .frame(width: 26, height: 26)
             VStack(alignment: .leading, spacing: 2) {
                 Text(transfer.name)
-                Text("\(fmt(transfer.amount)) · \(transfer.frequency.label) → \(bucketName)")
-                    .font(.caption).foregroundStyle(.secondary)
+                if let destination = transfer.externalDestination {
+                    Text("−\(fmt(transfer.amount)) · \(transfer.frequency.label) · \(bucketName) → \(destination)")
+                        .font(.caption).foregroundStyle(.secondary)
+                } else {
+                    Text("\(fmt(transfer.amount)) · \(transfer.frequency.label) → \(bucketName)")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                if !scheduleNote.isEmpty {
+                    Text(scheduleNote)
+                        .font(.caption2)
+                        .foregroundStyle(transfer.isActive ? .secondary : Color.orange)
+                }
             }
             Spacer()
             Button(transfer.isActive ? "Active" : "Off") {

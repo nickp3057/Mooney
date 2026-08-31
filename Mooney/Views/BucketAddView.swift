@@ -6,6 +6,7 @@ struct BucketAddView: View {
 
     @State private var name          = ""
     @State private var selectedColorHex = bucketPalette.first!
+    @State private var selectedIcon: String? = nil
     @State private var goalStr       = ""
     @State private var hasGoalDate   = false
     @State private var goalDate      = Date()
@@ -23,6 +24,7 @@ struct BucketAddView: View {
                         TextField("Bucket name", text: $name).multilineTextAlignment(.trailing)
                     }
                     ColorSwatchPicker(selectedHex: $selectedColorHex)
+                    BucketIconPicker(selectedIcon: $selectedIcon, colorHex: selectedColorHex)
                     HStack {
                         Text("Savings Goal"); Spacer()
                         Text("$").foregroundStyle(.secondary)
@@ -64,6 +66,7 @@ struct BucketAddView: View {
                     Text("Intended Allocation")
                 } footer: {
                     Text("Shows a quick-fill suggestion for this bucket when adding income.")
+                        .foregroundStyle(Color.helperText)
                 }
             }
             .navigationTitle("New Bucket")
@@ -84,7 +87,8 @@ struct BucketAddView: View {
                             isSpending: isSpending,
                             order: maxOrder + 1,
                             allocationPercent: allocationMode == .percent ? Double(allocationPercentStr) : nil,
-                            allocationAmount: allocationMode == .fixed ? Double(allocationAmountStr) : nil
+                            allocationAmount: allocationMode == .fixed ? Double(allocationAmountStr) : nil,
+                            iconName: selectedIcon
                         ))
                         dismiss()
                     }

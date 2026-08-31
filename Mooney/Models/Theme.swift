@@ -28,6 +28,18 @@ let accentPalette: [String] = ["#FF3B30", "#FF9500", "#FFCC00", "#34C759", "#007
 
 let defaultAccentHex = "#FF3B30"
 
+extension Color {
+    // A dedicated muted dark gray for explanatory/instructional copy (section
+    // footers, inline hints) — dimmer than the system's `.secondary`, which
+    // in dark mode reads brighter than plain data labels want it to.
+    static let helperText = Color(hex: "#6E6E73")
+}
+
+// Spotify-style near-black instead of pure system black, applied as the
+// List/NavigationStack background across the app so dark mode doesn't read
+// as flat #000.
+let appBackgroundHex = "#121212"
+
 // The app's 4 tabs, each independently colorable from Settings >
 // Appearance. Sub-pages reached from a tab (pushed screens, sheets) inherit
 // that tab's color via the tabAccentColor environment value below — the tab

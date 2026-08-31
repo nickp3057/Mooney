@@ -30,4 +30,10 @@ extension View {
             .listRowSeparator(.hidden)
             .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
     }
+
+    /// For a `Section` whose sole child is one `.bubbleCard()` VStack: clears
+    /// the List's own row background and separator so only the card shows.
+    func plainCardSection() -> some View {
+        listRowBackground(Color.clear).listRowSeparator(.hidden)
+    }
 }

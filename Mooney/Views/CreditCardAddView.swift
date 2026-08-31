@@ -31,6 +31,7 @@ struct CreditCardAddView: View {
                     .pickerStyle(.menu)
                 } footer: {
                     Text("The day of the month this card's payment is due. In months without that day, it's due on the last day instead. Bank App adds a quick-open button on the Ledger's Cards Due section — best-effort, may just open the bank's website if the app doesn't support it.")
+                        .foregroundStyle(Color.helperText)
                 }
             }
             .navigationTitle("New Credit Card")

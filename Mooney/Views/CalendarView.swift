@@ -104,6 +104,21 @@ struct CalendarView: View {
                             }
                         }
                         .id(displayedMonth)
+                        .contentShape(Rectangle())
+                        // .simultaneousGesture (not .gesture) so this never
+                        // claims the touch ahead of the List's own vertical
+                        // scroll pan — both get to recognize, and the
+                        // direction check below just no-ops on a vertical
+                        // drag instead of blocking the scroll.
+                        .simultaneousGesture(
+                            DragGesture(minimumDistance: 24)
+                                .onEnded { value in
+                                    let horizontal = value.translation.width
+                                    let vertical = value.translation.height
+                                    guard abs(horizontal) > abs(vertical) else { return }
+                                    changeMonth(by: horizontal < 0 ? 1 : -1)
+                                }
+                        )
                     }
                     .padding(.vertical, 4)
                     .bubbleCard()
