@@ -700,6 +700,40 @@ class AppStore {
         return true
     }
 
+    // Reconciles the ledger to a live bank balance by booking the entire
+    // difference on the general bucket — never on any other bucket, even if
+    // that drives the general bucket negative (the user then covers it with
+    // an explicit transfer out of whichever bucket they choose). Same-day
+    // syncs fold into one adjustment so a refresh-happy day doesn't litter
+    // the ledger. Returns the delta that was booked (0 if already matched).
+    @discardableResult
+    func syncTotalSavings(toBankBalance target: Double, bankName: String) -> Double {
+        guard let generalId = generalBucket?.id else { return 0 }
+        let delta = ((target - totalSavings) * 100).rounded() / 100
+        guard abs(delta) >= 0.005 else { return 0 }
+        let note = "Synced to \(bankName) balance"
+        let today = todayISO()
+        if let i = state.transactions.lastIndex(where: {
+            $0.bucketId == generalId && $0.type == "adjustment" && $0.note == note && $0.date == today
+        }) {
+            state.transactions[i].amount = ((state.transactions[i].amount + delta) * 100).rounded() / 100
+            if abs(state.transactions[i].amount) < 0.005 {
+                state.transactions.remove(at: i)
+            }
+        } else {
+            state.transactions.append(AppTransaction(
+                id: UUID().uuidString,
+                bucketId: generalId,
+                amount: delta,
+                date: today,
+                note: note,
+                type: "adjustment"
+            ))
+        }
+        save()
+        return delta
+    }
+
     // Moves money between two savings buckets as a paired debit/credit — unlike
     // overrideTotalSavings or a deposit/spend adjustment, the two transactions
     // always net to zero, so totalSavings itself never moves.

@@ -144,6 +144,7 @@
 				1E2D6F072FB3A3CF00897938 /* Frameworks */,
 				1E2D6F082FB3A3CF00897938 /* Resources */,
 				1EFF4E72303648E700BDE11A /* Embed Foundation Extensions */,
+				1EA7D5C0303700000000C0DE /* Generate LinkKit dSYM */,
 			);
 			buildRules = (
 			);
@@ -242,6 +243,28 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		1EA7D5C0303700000000C0DE /* Generate LinkKit dSYM */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Generate LinkKit dSYM";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# Plaid ships LinkKit as a stripped binary with no dSYM, so every App Store\n# upload warns \"The archive did not include a dSYM for the LinkKit.framework\".\n# There are no real symbols to recover; generate a stub dSYM carrying the\n# framework's UUID so the symbol upload stops flagging it. Archive-only.\nset -e\nif [ \"${ACTION}\" != \"install\" ]; then exit 0; fi\nFW=\"${BUILT_PRODUCTS_DIR}/${FRAMEWORKS_FOLDER_PATH}/LinkKit.framework/LinkKit\"\nif [ ! -f \"${FW}\" ]; then echo \"LinkKit not embedded; skipping stub dSYM\"; exit 0; fi\nmkdir -p \"${DWARF_DSYM_FOLDER_PATH}\"\nxcrun dsymutil \"${FW}\" -o \"${DWARF_DSYM_FOLDER_PATH}/LinkKit.framework.dSYM\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		1E2D6F062FB3A3CF00897938 /* Sources */ = {
@@ -417,7 +440,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.12.0;
+				MARKETING_VERSION = 1.13.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.nickpearson.Mooney;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -457,7 +480,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.12.0;
+				MARKETING_VERSION = 1.13.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.nickpearson.Mooney;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;

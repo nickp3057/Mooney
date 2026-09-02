@@ -7,7 +7,7 @@ struct DashboardView: View {
     @Environment(\.openURL) private var openURL
     @State private var selectedBucket: Bucket?
     @State private var showBalanceOverride = false
-    @State private var showAdjustBuckets = false
+    @State private var showSyncConfirm = false
     @State private var loggingPaymentId: String?
     @State private var plaidBalance: PlaidBalance?
     @State private var plaidError: String?
@@ -51,17 +51,27 @@ struct DashboardView: View {
         return store.totalSavings
     }
 
-    private var plaidDiscrepancy: (message: String, isOver: Bool)? {
-        guard let current = plaidBalance?.current else { return nil }
+    // Bank balance minus what the ledger thinks exists. With auto-sync on
+    // this is booked onto Main Savings the moment a balance arrives, so it
+    // only shows here transiently (or if the general bucket is missing).
+    private var bankDelta: Double? {
+        guard showLiveBankSection, let current = plaidBalance?.current else { return nil }
         let diff = current - store.totalSavings
-        guard abs(diff) >= 0.01 else { return nil }
+        return abs(diff) >= 0.01 ? diff : nil
+    }
+
+    private var plaidDiscrepancy: (message: String, isOver: Bool)? {
+        guard let diff = bankDelta else { return nil }
         if diff > 0 {
-            return ("Unallocated \(fmt(diff))", true)
+            return ("\(fmt(diff)) not in ledger", true)
         } else {
-            return autoSyncBalance
-                ? ("Over-allocated by \(fmt(abs(diff)))", false)
-                : ("Yo you broke by \(fmt(abs(diff)))", false)
+            return ("Yo you broke by \(fmt(abs(diff)))", false)
         }
+    }
+
+    private var generalBucketIsNegative: Bool {
+        guard let general = store.generalBucket else { return false }
+        return store.balance(for: general.id) < -0.005
     }
 
     // Easter egg: "69" showing up anywhere in the balance is a classic meme trigger.
@@ -198,8 +208,19 @@ struct DashboardView: View {
                     bankName: bankDisplayName
                 )
             }
-            .sheet(isPresented: $showAdjustBuckets) {
-                AdjustBucketsView(target: plaidBalance?.current ?? store.totalSavings)
+            .confirmationDialog(
+                "Sync to \(bankDisplayName) balance?",
+                isPresented: $showSyncConfirm,
+                titleVisibility: .visible
+            ) {
+                Button("Sync \(bankDelta.map { ($0 >= 0 ? "+" : "") + fmt($0) } ?? "")") {
+                    if let current = plaidBalance?.current {
+                        store.syncTotalSavings(toBankBalance: current, bankName: bankDisplayName)
+                    }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Books the difference on Main Savings only. Your other buckets aren't touched — if Main Savings goes negative, transfer from another bucket to cover it.")
             }
             .sheet(isPresented: Binding(
                 get: { loggingPaymentId != nil },
@@ -260,10 +281,16 @@ struct DashboardView: View {
                         .minimumScaleFactor(0.8)
                 }
                 Spacer(minLength: 0)
-                if showLiveBankSection, plaidBalance?.current != nil {
-                    Button("Adjust") { showAdjustBuckets = true }
+                if !autoSyncBalance, bankDelta != nil {
+                    Button("Sync") { showSyncConfirm = true }
                         .buttonStyle(.pill(accent, compact: true))
                 }
+            }
+
+            if generalBucketIsNegative {
+                Label("Main Savings is negative — transfer from another bucket to cover it.", systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.red)
             }
 
             if heroPoints.count > 1 {
@@ -418,8 +445,14 @@ struct DashboardView: View {
         plaidLoading = true
         defer { plaidLoading = false }
         do {
-            plaidBalance = try await plaidClient.fetchBalance()
+            let balance = try await plaidClient.fetchBalance()
+            plaidBalance = balance
             plaidError = nil
+            // Auto-sync: the ledger follows the bank, and the whole
+            // difference lands on Main Savings — other buckets stay put.
+            if autoSyncBalance, !store.isDecoyMode, let current = balance.current {
+                store.syncTotalSavings(toBankBalance: current, bankName: bankDisplayName)
+            }
         } catch {
             plaidError = error.localizedDescription
         }

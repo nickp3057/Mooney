@@ -61,6 +61,18 @@ struct AddIncomeView: View {
             }
             .screenBackground()
             .navigationTitle(isEditing ? "Edit Income" : "Add Income")
+            .toolbar {
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button {
+                        hideKeyboard()
+                    } label: {
+                        Text("Done")
+                            .fontWeight(.semibold)
+                    }
+                    .accessibilityLabel("Close keyboard")
+                }
+            }
         }
         .environment(\.tabAccentColor, accentColor)
     }
@@ -164,25 +176,26 @@ struct AddIncomeView: View {
         .listStyle(.insetGrouped)
         .listSectionSpacing(14)
         .onAppear { prepareForm() }
-        .toolbar {
-            ToolbarItemGroup(placement: .keyboard) {
-                Spacer()
-                Button {
-                    hideKeyboard()
-                } label: {
-                    Text("Done")
-                        .fontWeight(.semibold)
-                }
-                .accessibilityLabel("Close keyboard")
-            }
-        }
     }
 
     @ViewBuilder
     private func totalCard(_ accent: Color) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Total Received")
-                .sectionLabelStyle()
+            HStack {
+                Text("Total Received")
+                    .sectionLabelStyle()
+                Spacer()
+                // The decimal pad has no return key, so give the total its
+                // own dismiss control right where the thumb already is —
+                // the keyboard accessory bar below is a backup, not the
+                // only way out.
+                if moneyFieldFocused {
+                    Button("Done") { hideKeyboard() }
+                        .buttonStyle(.pill(accent, prominent: true, compact: true))
+                        .transition(.scale.combined(with: .opacity))
+                }
+            }
+            .animation(.snappy(duration: 0.2), value: moneyFieldFocused)
             HStack(alignment: .firstTextBaseline, spacing: 4) {
                 Text("$")
                     .font(.system(size: 28, weight: .bold, design: .rounded))

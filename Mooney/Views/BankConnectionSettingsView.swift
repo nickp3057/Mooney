@@ -53,8 +53,8 @@ struct BankConnectionSettingsView: View {
                 Text("Dashboard Balance")
             } footer: {
                 Text(autoSyncBalance
-                     ? "The top balance follows your live \(bankDisplayName.isEmpty ? "bank" : bankDisplayName) balance directly, and Mooney tells you how much of it is unallocated."
-                     : "The top balance stays based on your buckets. Mooney flags it when that total doesn't match your live \(bankDisplayName.isEmpty ? "bank" : bankDisplayName) balance.")
+                     ? "Every refreshed \(bankDisplayName.isEmpty ? "bank" : bankDisplayName) balance is booked into the ledger automatically. The whole difference lands on Main Savings — your other buckets are never touched."
+                     : "The top balance stays based on your buckets. Mooney flags it when that total doesn't match your live \(bankDisplayName.isEmpty ? "bank" : bankDisplayName) balance, with a Sync button that books the difference on Main Savings.")
                     .foregroundStyle(Color.helperText)
             }
 

@@ -67,7 +67,7 @@ struct BucketChip: View {
                     Text(fmt(display))
                         .font(.system(size: 18, weight: .bold, design: .rounded))
                         .monospacedDigit()
-                        .foregroundStyle(.primary)
+                        .foregroundStyle(display < -0.005 ? Color.red : Color.primary)
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
                 }
@@ -102,16 +102,18 @@ struct BucketHeroRow: View {
                     Text(bucket.name)
                         .font(.body.weight(.semibold))
                         .foregroundStyle(.primary)
-                    Text("Main savings · unassigned money lands here")
+                    Text(display < -0.005
+                         ? "Negative — transfer from another bucket to cover it"
+                         : "Main savings · unassigned money lands here")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(display < -0.005 ? Color.red : Color.secondary)
                         .lineLimit(1)
                 }
                 Spacer()
                 Text(fmt(display))
                     .font(.system(size: 20, weight: .bold, design: .rounded))
                     .monospacedDigit()
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(display < -0.005 ? Color.red : Color.primary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
                 Image(systemName: "chevron.right")

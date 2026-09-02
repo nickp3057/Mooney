@@ -138,6 +138,7 @@ private struct BucketDetailContent: View {
                     Text(fmt(bucket.isSpending ? lastA : balance))
                         .font(.system(size: 40, weight: .bold, design: .rounded))
                         .monospacedDigit()
+                        .foregroundStyle(!bucket.isSpending && balance < -0.005 ? Color.red : Color.primary)
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
                         .contentTransition(.numericText())
