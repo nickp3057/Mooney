@@ -5,6 +5,7 @@ import SwiftUI
 // idea which one it is (and shouldn't).
 struct LockView: View {
     @Environment(AppStore.self) var store
+    @Environment(\.colorScheme) private var scheme
     @State private var digits = ""
     @State private var shake = false
     @State private var showError = false
@@ -17,10 +18,9 @@ struct LockView: View {
         VStack(spacing: 36) {
             Spacer()
 
-            VStack(spacing: 10) {
-                Image(systemName: "lock.fill")
-                    .font(.system(size: 32))
-                    .foregroundStyle(.secondary)
+            VStack(spacing: 14) {
+                IconTile(systemName: "lock.fill", color: store.accentColor, size: 56)
+                    .shadow(color: store.accentColor.opacity(0.35), radius: 16, y: 6)
                 Text("Enter PIN")
                     .font(.title2.weight(.semibold))
             }
@@ -29,28 +29,25 @@ struct LockView: View {
                 ForEach(0..<maxDigits, id: \.self) { i in
                     Circle()
                         .strokeBorder(Color.secondary.opacity(0.5), lineWidth: 1.5)
-                        .background(Circle().fill(i < digits.count ? Color.primary : Color.clear))
+                        .background(Circle().fill(i < digits.count ? store.accentColor : Color.clear))
                         .frame(width: 14, height: 14)
+                        .animation(.snappy(duration: 0.15), value: digits.count)
                 }
             }
             .modifier(ShakeEffect(shakes: shake ? 2 : 0))
             .animation(.default, value: shake)
 
-            if showError {
-                Text("Incorrect PIN")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(.red)
-            }
+            Text(showError ? "Incorrect PIN" : " ")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.red)
 
             if BiometricAuth.isEnabled && BiometricAuth.isAvailable {
                 Button {
                     attemptBiometrics()
                 } label: {
                     Label("Use Face ID", systemImage: "faceid")
-                        .font(.subheadline.weight(.semibold))
                 }
-                .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
+                .buttonStyle(.pill(store.accentColor))
             }
 
             Spacer()
@@ -59,7 +56,13 @@ struct LockView: View {
                 .padding(.bottom, 24)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(.background)
+        .background(
+            ZStack {
+                (scheme == .dark ? Color(hex: appBackgroundHex) : Color(.systemGroupedBackground))
+                AccentGlow(color: store.accentColor).opacity(0.6)
+            }
+            .ignoresSafeArea()
+        )
         .task {
             guard !didAttemptBiometrics, BiometricAuth.isEnabled else { return }
             attemptBiometrics()
@@ -110,9 +113,10 @@ struct LockView: View {
                 appendDigit(key)
             } label: {
                 Text(key)
-                    .font(.system(size: 28, weight: .medium))
+                    .font(.system(size: 28, weight: .medium, design: .rounded))
                     .frame(width: 72, height: 72)
-                    .background(Circle().fill(Color.secondary.opacity(0.12)))
+                    .background(Circle().fill(Color(.secondarySystemGroupedBackground)))
+                    .overlay(Circle().strokeBorder(Color.primary.opacity(0.06), lineWidth: 1))
             }
             .buttonStyle(.plain)
             .foregroundStyle(.primary)

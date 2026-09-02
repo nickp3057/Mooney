@@ -69,6 +69,7 @@ struct RecurringTransferAddView: View {
                         .foregroundStyle(Color.helperText)
                 }
             }
+            .screenBackground()
             .navigationTitle("New Recurring Transfer")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

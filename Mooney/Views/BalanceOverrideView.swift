@@ -60,6 +60,7 @@ struct BalanceOverrideView: View {
                         .font(.caption).foregroundStyle(.secondary)
                 }
             }
+            .screenBackground()
             .navigationTitle("Correct Balance")
             .navigationBarTitleDisplayMode(.inline)
             .onAppear {

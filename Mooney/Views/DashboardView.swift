@@ -56,9 +56,7 @@ struct DashboardView: View {
         let diff = current - store.totalSavings
         guard abs(diff) >= 0.01 else { return nil }
         if diff > 0 {
-            return autoSyncBalance
-                ? ("Unallocated: \(fmt(diff))", true)
-                : ("Unallocated balance: \(fmt(diff))", true)
+            return ("Unallocated \(fmt(diff))", true)
         } else {
             return autoSyncBalance
                 ? ("Over-allocated by \(fmt(abs(diff)))", false)
@@ -78,16 +76,30 @@ struct DashboardView: View {
         var entries: [LedgerEntry]
     }
 
-    private var heroPoints: [SavingsPoint] {
-        let all = store.savingsBalancePoints()
-        guard let cutoff = Calendar.current.date(byAdding: .day, value: -30, to: Date()) else { return all }
-        let trimmed = all.filter { $0.date >= cutoff }
-        return trimmed.count >= 2 ? trimmed : Array(all.suffix(2))
+    private var thirtyDayCutoff: Date? {
+        Calendar.current.date(byAdding: .day, value: -30, to: Date())
     }
 
+    // The last 30 days of the savings curve, anchored by the most recent
+    // point before the window so the line doesn't start mid-air.
+    private var heroPoints: [SavingsPoint] {
+        let all = store.savingsBalancePoints()
+        guard let cutoff = thirtyDayCutoff else { return all }
+        let inWindow = all.filter { $0.date >= cutoff }
+        if let previous = all.last(where: { $0.date < cutoff }) {
+            return [previous] + inWindow
+        }
+        return inWindow
+    }
+
+    // Change over the last 30 days — measured against the balance as it
+    // stood at the start of the window, not the oldest point that happens
+    // to be in the trimmed list (which could be years old).
     private var heroDelta: Double {
-        guard let first = heroPoints.first, let last = heroPoints.last else { return 0 }
-        return last.balance - first.balance
+        let all = store.savingsBalancePoints()
+        guard let cutoff = thirtyDayCutoff, let last = all.last, last.date >= cutoff else { return 0 }
+        let baseline = all.last(where: { $0.date < cutoff })?.balance ?? 0
+        return last.balance - baseline
     }
 
     private var groupedLedger: [LedgerGroup] {
@@ -104,275 +116,81 @@ struct DashboardView: View {
     }
 
     private func dayLabel(for iso: String) -> String {
-        guard let d = isoDateFormatter.date(from: iso) else { return iso.uppercased() }
+        guard let d = isoDateFormatter.date(from: iso) else { return iso }
         let cal = Calendar.current
-        if cal.isDateInToday(d) { return "TODAY" }
-        if cal.isDateInYesterday(d) { return "YESTERDAY" }
+        if cal.isDateInToday(d) { return "Today" }
+        if cal.isDateInYesterday(d) { return "Yesterday" }
         let df = DateFormatter()
-        df.dateFormat = "EEEE, MMM d"
-        return df.string(from: d).uppercased()
+        df.dateFormat = cal.component(.year, from: d) == cal.component(.year, from: Date()) ? "EEEE, MMM d" : "EEEE, MMM d, yyyy"
+        return df.string(from: d)
     }
+
+    private let gridColumns = [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)]
 
     var body: some View {
         let accentColor = store.accentColor(for: .ledger)
         NavigationStack {
             List {
-                // ── Hero balance + 30-day sparkline, with the live bank
-                // balance folded in as a subordinate line rather than a
-                // second competing headline number ──
                 Section {
-                    VStack(alignment: .leading, spacing: 6) {
-                        if showCheckingSection {
-                            miniBalanceRow(
-                                label: "\(bankDisplayName) Checking",
-                                balance: checkingBalance,
-                                error: checkingError,
-                                loading: checkingLoading
-                            ) {
-                                Task { await refreshCheckingBalance() }
+                    heroCard(accentColor)
+                        .task {
+                            if showLiveBankSection {
+                                await refreshPlaidBalance()
                             }
-                            .padding(.bottom, 2)
-                        }
-                        if showLiveBankSection {
-                            miniBalanceRow(
-                                label: "\(bankDisplayName) Primary Savings",
-                                balance: plaidBalance,
-                                error: plaidError,
-                                loading: plaidLoading,
-                                showEasterEgg: balanceHasNiceEasterEgg
-                            ) {
-                                Task { await refreshPlaidBalance() }
-                            }
-                            .padding(.bottom, 2)
-                        }
-                        HStack(alignment: .firstTextBaseline) {
-                            Text(autoSyncBalance && showLiveBankSection ? "\(bankDisplayName.uppercased()) PRIMARY SAVINGS" : "SAVINGS BALANCE")
-                                .font(.system(size: 11, weight: .semibold))
-                                .foregroundStyle(.secondary)
-                            Spacer()
-                            Button {
-                                showBalanceOverride = true
-                            } label: {
-                                Text("Correct Balance")
-                                    .font(.system(size: 13, weight: .semibold))
-                            }
-                            .buttonStyle(.plain)
-                            .foregroundStyle(accentColor)
-                        }
-                        Text(fmt(heroBalance))
-                            .font(.system(size: 40, weight: .bold))
-                            .monospacedDigit()
-                        if heroDelta != 0 {
-                            Text("\(heroDelta >= 0 ? "+" : "")\(fmt(heroDelta)) · 30d")
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(heroDelta >= 0 ? .green : .primary)
-                        }
-                        if heroPoints.count > 1 {
-                            Chart {
-                                ForEach(heroPoints) { point in
-                                    LineMark(x: .value("Date", point.date), y: .value("Balance", point.balance))
-                                        .foregroundStyle(Color.primary)
-                                        .lineStyle(StrokeStyle(lineWidth: 1.5))
-                                        .interpolationMethod(.catmullRom)
-                                }
-                                if let last = heroPoints.last {
-                                    PointMark(x: .value("Date", last.date), y: .value("Balance", last.balance))
-                                        .foregroundStyle(accentColor)
-                                        .symbolSize(30)
-                                }
-                            }
-                            .chartXAxis {
-                                AxisMarks(values: .automatic(desiredCount: 2)) {
-                                    AxisValueLabel(format: .dateTime.month(.abbreviated).day(), centered: false)
-                                }
-                            }
-                            .chartYAxis(.hidden)
-                            .frame(height: 40)
-                            .padding(.top, 4)
-                        }
-
-                        if showLiveBankSection {
-                            // Reconciles the live bank balance against what
-                            // the buckets/bills ledger thinks exists — these
-                            // can legitimately diverge (unspent cash sitting
-                            // in checking that isn't assigned to a bucket
-                            // yet), but a negative gap means the ledger
-                            // thinks there's money that isn't really there.
-                            if let plaidDiscrepancy {
-                                HStack(spacing: 8) {
-                                    Text(plaidDiscrepancy.message)
-                                        .font(.caption2.weight(.semibold))
-                                        .foregroundStyle(plaidDiscrepancy.isOver ? Color.secondary : Color.red)
-                                    if plaidBalance?.current != nil {
-                                        Spacer(minLength: 8)
-                                        Button("Adjust Buckets") { showAdjustBuckets = true }
-                                            .font(.caption2.weight(.semibold))
-                                            .foregroundStyle(accentColor)
-                                            .buttonStyle(.plain)
-                                    }
-                                }
-                                .padding(.top, 1)
-                            } else if plaidBalance?.current != nil {
-                                Button("Adjust Buckets") { showAdjustBuckets = true }
-                                    .font(.caption2.weight(.semibold))
-                                    .foregroundStyle(accentColor)
-                                    .buttonStyle(.plain)
-                                    .padding(.top, 4)
+                            if showCheckingSection {
+                                await refreshCheckingBalance()
                             }
                         }
-                    }
-                    .padding(.vertical, 4)
-                    .task {
-                        if showLiveBankSection {
-                            await refreshPlaidBalance()
-                        }
-                        if showCheckingSection {
-                            await refreshCheckingBalance()
-                        }
-                    }
-                    .bubbleCard()
                 }
-                .listRowBackground(Color.clear)
-                .listRowSeparator(.hidden)
+                .cardRow()
 
-                // ── Bucket quick access ── Spending buckets (e.g. a
-                // "Checking" pass-through) are deliberately excluded — they're
-                // not meant to carry a tracked total, so they don't belong in
-                // a strip that implies one. The general "main savings" bucket
-                // gets its own full-width row above the 2-across grid of
-                // everything else, Reminders-list style.
-                if !store.savingsBuckets.isEmpty {
-                    let generalBucket = store.savingsBuckets.first { $0.isGeneral }
-                    let otherBuckets = store.savingsBuckets.filter { !$0.isGeneral }
-
-                    if let generalBucket {
-                        Section {
-                            BucketHeroRow(bucket: generalBucket) { selectedBucket = generalBucket }
-                        }
-                        .listRowBackground(Color.clear)
-                        .listRowSeparator(.hidden)
-                    }
-
-                    if !otherBuckets.isEmpty {
-                        Section {
-                            LazyVGrid(
-                                columns: [GridItem(.flexible(), alignment: .leading), GridItem(.flexible(), alignment: .leading)],
-                                alignment: .leading,
-                                spacing: 8
-                            ) {
-                                ForEach(otherBuckets) { bucket in
-                                    BucketChip(bucket: bucket) { selectedBucket = bucket }
-                                }
-                            }
-                        }
-                        .listRowBackground(Color.clear)
-                        .listRowSeparator(.hidden)
-                    }
-                }
+                bucketsSections
 
                 if !store.currentCardPayments.isEmpty {
-                    Section("Credit Cards") {
-                        LazyVGrid(
-                            columns: [GridItem(.flexible(), alignment: .leading), GridItem(.flexible(), alignment: .leading)],
-                            alignment: .leading,
-                            spacing: 6
-                        ) {
+                    Section {
+                        LazyVGrid(columns: gridColumns, spacing: 10) {
                             ForEach(store.currentCardPayments, id: \.payment.id) { pending in
-                                cardChip(pending)
+                                cardChip(pending, accent: accentColor)
                             }
                         }
-                        .listRowBackground(Color.clear)
-                        .listRowSeparator(.hidden)
-                        .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                    } header: {
+                        Text("Credit Cards")
                     }
+                    .cardRow()
                 }
 
                 if !store.unpaidBillGroups.isEmpty {
-                    Section("Bills To Pay") {
+                    Section("Bills to Pay") {
                         ForEach(store.unpaidBillGroups) { bill in
-                            HStack(spacing: 10) {
-                                Button {
-                                    store.setUnpaidBillGroupPaid(billId: bill.billId)
-                                } label: {
-                                    Image(systemName: bill.canPay ? "circle" : "lock.circle")
-                                        .font(.title3)
-                                }
-                                .buttonStyle(.plain)
-                                .foregroundStyle(bill.canPay ? accentColor : .secondary)
-                                .disabled(!bill.canPay)
-
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(bill.name)
-                                    Text(bill.canPay
-                                         ? "\(fmt(bill.savedAmount)) ready to pay"
-                                         : "\(fmt(bill.savedAmount)) of \(fmt(bill.requiredAmount)) saved")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-                                Spacer()
-                                Text(fmt(bill.requiredAmount))
-                                    .fontWeight(.semibold)
-                            }
-                            .bubbleCardRow()
+                            billRow(bill, accent: accentColor)
                         }
                     }
                 }
 
-                // ── Chronological ledger ──
                 ForEach(groupedLedger) { group in
                     Section(group.label) {
                         ForEach(group.entries) { entry in
-                            HStack(spacing: 10) {
-                                if entry.isTransfer {
-                                    Image(systemName: "arrow.left.arrow.right.circle.fill")
-                                        .font(.system(size: 20))
-                                        .foregroundStyle(.secondary)
-                                        .frame(width: 20, height: 20)
-                                } else {
-                                    RoundedRectangle(cornerRadius: 2)
-                                        .fill(entry.color)
-                                        .frame(width: 10, height: 10)
-                                }
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(entry.title)
-                                    Text(entry.subtitle)
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-                                Spacer()
-                                if entry.isTransfer {
-                                    Text(fmt(entry.amount))
-                                        .fontWeight(.semibold)
-                                        .monospacedDigit()
-                                        .foregroundStyle(.secondary)
-                                } else {
-                                    Text((entry.amount >= 0 ? "+" : "") + fmt(entry.amount))
-                                        .fontWeight(.semibold)
-                                        .monospacedDigit()
-                                        .foregroundStyle(entry.amount >= 0 ? .green : .red)
-                                }
-                            }
-                            .contentShape(Rectangle())
-                            .onTapGesture {
-                                if let id = entry.bucketId,
-                                   let bucket = store.state.buckets.first(where: { $0.id == id }) {
-                                    selectedBucket = bucket
-                                }
-                            }
-                            .bubbleCardRow()
+                            ledgerRow(entry)
                         }
                     }
                 }
 
                 if groupedLedger.isEmpty {
                     Section {
-                        Text("No activity yet").foregroundStyle(.secondary)
+                        ContentUnavailableView {
+                            Label("No activity yet", systemImage: "tray")
+                        } description: {
+                            Text("Log your first paycheck from the Add tab and it'll show up here.")
+                        }
+                        .padding(.vertical, 8)
                     }
+                    .cardRow()
                 }
             }
-            .listStyle(.plain)
+            .listStyle(.insetGrouped)
+            .listSectionSpacing(14)
+            .screenBackground()
             .navigationTitle("Ledger")
-            .navigationBarTitleDisplayMode(.inline)
             .sheet(item: $selectedBucket) { BucketDetailView(bucket: $0) }
             .sheet(isPresented: $showBalanceOverride) {
                 BalanceOverrideView(
@@ -394,6 +212,207 @@ struct DashboardView: View {
         }
         .environment(\.tabAccentColor, accentColor)
     }
+
+    // MARK: - Hero
+
+    @ViewBuilder
+    private func heroCard(_ accent: Color) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(autoSyncBalance && showLiveBankSection ? "\(bankDisplayName) Primary Savings" : "Savings Balance")
+                    .sectionLabelStyle()
+                Spacer()
+                Button("Correct") { showBalanceOverride = true }
+                    .buttonStyle(.pill(accent, compact: true))
+            }
+
+            Text(fmt(heroBalance))
+                .font(.system(size: 44, weight: .bold, design: .rounded))
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+                .contentTransition(.numericText())
+                .animation(.snappy, value: heroBalance)
+
+            HStack(spacing: 8) {
+                if heroDelta != 0 {
+                    let up = heroDelta > 0
+                    Label {
+                        Text("\(up ? "+" : "")\(fmt(heroDelta)) · 30d")
+                    } icon: {
+                        Image(systemName: up ? "arrow.up.right" : "arrow.down.right")
+                    }
+                    .font(.caption.weight(.semibold))
+                    .monospacedDigit()
+                    .foregroundStyle(up ? Color.green : Color.primary)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 5)
+                    .background(Capsule().fill((up ? Color.green : Color.primary).opacity(0.12)))
+                }
+                if showLiveBankSection, let plaidDiscrepancy {
+                    Text(plaidDiscrepancy.message)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(plaidDiscrepancy.isOver ? Color.secondary : Color.red)
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 5)
+                        .background(Capsule().fill((plaidDiscrepancy.isOver ? Color.secondary : Color.red).opacity(0.12)))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                }
+                Spacer(minLength: 0)
+                if showLiveBankSection, plaidBalance?.current != nil {
+                    Button("Adjust") { showAdjustBuckets = true }
+                        .buttonStyle(.pill(accent, compact: true))
+                }
+            }
+
+            if heroPoints.count > 1 {
+                Chart {
+                    ForEach(heroPoints) { point in
+                        AreaMark(x: .value("Date", point.date), y: .value("Balance", point.balance))
+                            .foregroundStyle(
+                                LinearGradient(colors: [accent.opacity(0.35), accent.opacity(0)], startPoint: .top, endPoint: .bottom)
+                            )
+                            .interpolationMethod(.catmullRom)
+                        LineMark(x: .value("Date", point.date), y: .value("Balance", point.balance))
+                            .foregroundStyle(accent)
+                            .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round))
+                            .interpolationMethod(.catmullRom)
+                    }
+                    if let last = heroPoints.last {
+                        PointMark(x: .value("Date", last.date), y: .value("Balance", last.balance))
+                            .foregroundStyle(accent)
+                            .symbolSize(40)
+                    }
+                }
+                .chartXAxis(.hidden)
+                .chartYAxis(.hidden)
+                .chartYScale(domain: .automatic(includesZero: false))
+                .frame(height: 56)
+                .padding(.top, 2)
+            }
+
+            if showLiveBankSection {
+                Divider().padding(.vertical, 2)
+                VStack(spacing: 8) {
+                    if showCheckingSection {
+                        miniBalanceRow(
+                            label: "\(bankDisplayName) Checking",
+                            balance: checkingBalance,
+                            error: checkingError,
+                            loading: checkingLoading
+                        ) {
+                            Task { await refreshCheckingBalance() }
+                        }
+                    }
+                    miniBalanceRow(
+                        label: "\(bankDisplayName) Primary Savings",
+                        balance: plaidBalance,
+                        error: plaidError,
+                        loading: plaidLoading,
+                        showEasterEgg: balanceHasNiceEasterEgg
+                    ) {
+                        Task { await refreshPlaidBalance() }
+                    }
+                }
+            }
+        }
+        .heroCard(tint: accent)
+    }
+
+    // MARK: - Buckets
+
+    @ViewBuilder
+    private var bucketsSections: some View {
+        // Spending buckets (e.g. a "Checking" pass-through) are deliberately
+        // excluded — they're not meant to carry a tracked total, so they
+        // don't belong in a strip that implies one. The general "main
+        // savings" bucket gets its own full-width row above the 2-across
+        // grid of everything else.
+        if !store.savingsBuckets.isEmpty {
+            let generalBucket = store.savingsBuckets.first { $0.isGeneral }
+            let otherBuckets = store.savingsBuckets.filter { !$0.isGeneral }
+
+            Section {
+                if let generalBucket {
+                    BucketHeroRow(bucket: generalBucket) { selectedBucket = generalBucket }
+                }
+                if !otherBuckets.isEmpty {
+                    LazyVGrid(columns: gridColumns, spacing: 10) {
+                        ForEach(otherBuckets) { bucket in
+                            BucketChip(bucket: bucket) { selectedBucket = bucket }
+                        }
+                    }
+                    .padding(.top, generalBucket == nil ? 0 : 10)
+                }
+            } header: {
+                Text("Buckets")
+            }
+            .cardRow()
+        }
+    }
+
+    // MARK: - Rows
+
+    @ViewBuilder
+    private func billRow(_ bill: UnpaidBillGroup, accent: Color) -> some View {
+        HStack(spacing: 12) {
+            Button {
+                store.setUnpaidBillGroupPaid(billId: bill.billId)
+            } label: {
+                Image(systemName: bill.canPay ? "circle" : "lock.circle")
+                    .font(.system(size: 22, weight: .regular))
+                    .foregroundStyle(bill.canPay ? accent : Color.secondary)
+            }
+            .buttonStyle(.plain)
+            .disabled(!bill.canPay)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(bill.name)
+                Text(bill.canPay
+                     ? "Ready to pay"
+                     : "\(fmt(bill.savedAmount)) of \(fmt(bill.requiredAmount)) saved")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                if !bill.canPay {
+                    GoalBar(progress: bill.requiredAmount > 0 ? bill.savedAmount / bill.requiredAmount : 0, color: accent, height: 3)
+                        .padding(.top, 2)
+                }
+            }
+            Spacer()
+            Text(fmt(bill.requiredAmount))
+                .font(.body.weight(.semibold))
+                .monospacedDigit()
+        }
+        .padding(.vertical, 2)
+    }
+
+    @ViewBuilder
+    private func ledgerRow(_ entry: LedgerEntry) -> some View {
+        HStack(spacing: 12) {
+            IconTile(systemName: entry.kind.systemImage, color: entry.color, size: 34)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(entry.title)
+                    .lineLimit(1)
+                Text(entry.subtitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            Spacer()
+            AmountText(amount: entry.amount, signed: !entry.isTransfer, muted: entry.isTransfer)
+        }
+        .padding(.vertical, 2)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if let id = entry.bucketId,
+               let bucket = store.state.buckets.first(where: { $0.id == id }) {
+                selectedBucket = bucket
+            }
+        }
+    }
+
+    // MARK: - Plaid
 
     private func refreshPlaidBalance() async {
         plaidLoading = true
@@ -439,18 +458,20 @@ struct DashboardView: View {
         showEasterEgg: Bool = false,
         onRefresh: @escaping () -> Void
     ) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 6) {
-            Text(label)
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Image(systemName: "building.columns.fill")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
+            Text(label)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Spacer()
             if let balance {
                 Text(fmt(balance.current ?? 0))
-                    .font(.caption2.weight(.semibold))
+                    .font(.caption.weight(.semibold))
                     .monospacedDigit()
-                    .foregroundStyle(.secondary)
                 if showEasterEgg {
-                    Text("😏")
-                        .font(.caption2)
+                    Text("😏").font(.caption2)
                 }
             } else if let error {
                 Text(error)
@@ -462,77 +483,61 @@ struct DashboardView: View {
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
-            Spacer()
             if loading {
                 ProgressView().controlSize(.mini)
             } else {
                 Button(action: onRefresh) {
                     Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 9, weight: .semibold))
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 20, height: 20)
+                        .background(Circle().fill(Color.primary.opacity(0.07)))
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
             }
         }
     }
 
+    // MARK: - Cards
+
     @ViewBuilder
-    private func cardChip(_ pending: (card: CreditCard, payment: CardPayment)) -> some View {
+    private func cardChip(_ pending: (card: CreditCard, payment: CardPayment), accent: Color) -> some View {
         let isPaid = pending.payment.isPaid
-        let accentColor = store.accentColor(for: .ledger)
-        HStack(alignment: .top, spacing: 6) {
-            Group {
-                if isPaid {
-                    VStack(alignment: .leading, spacing: 3) {
-                        HStack(spacing: 5) {
-                            Image(systemName: "checkmark.circle.fill")
-                                .font(.system(size: 12))
-                                .foregroundStyle(.green)
-                            Text(pending.card.name)
-                                .font(.system(size: 13, weight: .medium))
-                                .foregroundStyle(.primary)
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.8)
-                        }
-                        Text("Paid")
-                            .font(.system(size: 11))
-                            .foregroundStyle(.green)
-                    }
-                } else {
-                    Button {
-                        loggingPaymentId = pending.payment.id
-                    } label: {
-                        VStack(alignment: .leading, spacing: 3) {
-                            HStack(spacing: 5) {
-                                Image(systemName: "creditcard.fill")
-                                    .font(.system(size: 12))
-                                    .foregroundStyle(accentColor)
-                                Text(pending.card.name)
-                                    .font(.system(size: 13, weight: .medium))
-                                    .foregroundStyle(.primary)
-                                    .lineLimit(1)
-                                    .minimumScaleFactor(0.8)
-                            }
-                            Text("Due \(fmtDueDate(pending.payment.dueDate))")
-                                .font(.system(size: 11))
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                        }
+        let tint: Color = isPaid ? .green : accent
+        Button {
+            if !isPaid { loggingPaymentId = pending.payment.id }
+        } label: {
+            HStack(spacing: 10) {
+                IconTile(systemName: isPaid ? "checkmark" : "creditcard.fill", color: tint, size: 32)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(pending.card.name)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                    Text(isPaid ? "Paid" : "Due \(fmtDueDate(pending.payment.dueDate))")
+                        .font(.caption)
+                        .foregroundStyle(isPaid ? Color.green : Color.secondary)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 0)
+                if let app = pending.card.bankApp {
+                    Button { openBankApp(app) } label: {
+                        Image(systemName: "arrow.up.forward")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(accent)
+                            .frame(width: 24, height: 24)
+                            .background(Circle().fill(accent.opacity(0.14)))
                     }
                     .buttonStyle(.plain)
                 }
             }
-            Spacer(minLength: 0)
-            if let app = pending.card.bankApp {
-                Button { openBankApp(app) } label: {
-                    Image(systemName: "arrow.up.forward.app.fill")
-                        .font(.system(size: 10))
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(accentColor)
-            }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .tintedChipBackground(tint)
         }
-        .bubbleCard()
+        .buttonStyle(.plain)
+        .disabled(isPaid)
     }
 
     private func openBankApp(_ app: BankApp) {

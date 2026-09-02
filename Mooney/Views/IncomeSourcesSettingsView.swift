@@ -10,9 +10,7 @@ struct IncomeSourcesSettingsView: View {
             Section {
                 ForEach(store.state.incomeSources) { source in
                     HStack(spacing: 12) {
-                        Image(systemName: "dollarsign.circle.fill")
-                            .foregroundStyle(accentColor)
-                            .frame(width: 26, height: 26)
+                        IconTile(systemName: "dollarsign", color: accentColor, size: 32)
                         Text(source.name)
                         Spacer()
                     }
@@ -21,13 +19,17 @@ struct IncomeSourcesSettingsView: View {
                             store.deleteIncomeSource(id: source.id)
                         }
                     }
-                    .bubbleCardRow()
                 }
-                Button("+ New Source") { showAddSource = true }
-                    .foregroundStyle(accentColor)
+                Button { showAddSource = true } label: {
+                    AddRow(title: "New Source", tint: accentColor)
+                }
+                .buttonStyle(.plain)
+            } footer: {
+                Text("Where money comes from — a job, a side gig — so incomes can be tagged when you log them.")
             }
         }
-        .listStyle(.plain)
+        .listStyle(.insetGrouped)
+        .screenBackground()
         .navigationTitle("Income Sources")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showAddSource) { IncomeSourceAddView() }

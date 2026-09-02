@@ -25,42 +25,36 @@ struct RecurringTransferRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: "arrow.triangle.2.circlepath")
-                .foregroundStyle(accentColor)
-                .frame(width: 26, height: 26)
+            IconTile(systemName: transfer.externalDestination == nil ? "arrow.triangle.2.circlepath" : "arrow.up.right",
+                     color: accentColor, size: 32)
             VStack(alignment: .leading, spacing: 2) {
-                Text(transfer.name)
+                Text(transfer.name).lineLimit(1)
                 if let destination = transfer.externalDestination {
                     Text("−\(fmt(transfer.amount)) · \(transfer.frequency.label) · \(bucketName) → \(destination)")
-                        .font(.caption).foregroundStyle(.secondary)
+                        .font(.caption).foregroundStyle(.secondary).lineLimit(1)
                 } else {
                     Text("\(fmt(transfer.amount)) · \(transfer.frequency.label) → \(bucketName)")
-                        .font(.caption).foregroundStyle(.secondary)
+                        .font(.caption).foregroundStyle(.secondary).lineLimit(1)
                 }
                 if !scheduleNote.isEmpty {
                     Text(scheduleNote)
                         .font(.caption2)
-                        .foregroundStyle(transfer.isActive ? .secondary : Color.orange)
+                        .foregroundStyle(transfer.isActive ? Color.secondary : Color.orange)
+                        .lineLimit(1)
                 }
             }
             Spacer()
-            Button(transfer.isActive ? "Active" : "Off") {
+            Button {
                 store.toggleRecurringTransferActive(id: transfer.id)
+            } label: {
+                StatusChip(title: transfer.isActive ? "Active" : "Off", isOn: transfer.isActive, tint: accentColor)
             }
-            .font(.system(size: 13, weight: .semibold))
-            .foregroundStyle(transfer.isActive ? accentColor : .secondary)
-            .padding(.horizontal, 10).padding(.vertical, 4)
-            .background(transfer.isActive ? accentColor.opacity(0.15) : Color(.systemGray6))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
             .buttonStyle(.plain)
-
-            Button("Edit", action: onEdit)
-                .font(.system(size: 13)).foregroundStyle(.secondary)
-                .padding(.horizontal, 10).padding(.vertical, 4)
-                .background(Color(.systemGray6))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-                .buttonStyle(.plain)
+            Image(systemName: "chevron.right")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(.tertiary)
         }
-        .bubbleCardRow()
+        .contentShape(Rectangle())
+        .onTapGesture(perform: onEdit)
     }
 }

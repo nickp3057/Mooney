@@ -24,8 +24,25 @@ struct AddIncomeView: View {
             return sum + (Double(billAmounts[bill.id] ?? "") ?? 0)
         }
     }
+
+    // Active buckets, plus — when editing — any bucket the income already
+    // allocates to that has since been paused/archived. Without that, saving
+    // an edit would silently drop those allocations (and the money would
+    // quietly resettle into the general bucket).
+    var allocationBuckets: [Bucket] {
+        var list = store.activeBuckets
+        guard let incomeToEdit else { return list }
+        let known = Set(list.map(\.id))
+        for allocation in incomeToEdit.allocations where !known.contains(allocation.bucketId) {
+            if let bucket = store.state.buckets.first(where: { $0.id == allocation.bucketId }) {
+                list.append(bucket)
+            }
+        }
+        return list
+    }
+
     var allocated: Double {
-        store.activeBuckets.reduce(0) { $0 + (Double(allocs[$1.id] ?? "") ?? 0) }
+        allocationBuckets.reduce(0) { $0 + (Double(allocs[$1.id] ?? "") ?? 0) }
     }
     var envelopeMoney: Double { total - billTotal }
     var remaining: Double { envelopeMoney - allocated }
@@ -35,176 +52,269 @@ struct AddIncomeView: View {
     var body: some View {
         let accentColor = store.accentColor(for: .add)
         NavigationStack {
-            if saved {
-                VStack(spacing: 16) {
-                    Text(isEditing ? "Saved" : "🎉").font(.system(size: isEditing ? 34 : 64, weight: .bold))
-                    Text(isEditing ? "Income updated!" : "Income saved!").font(.title.bold())
-                    Text("Nice work staying on top of it.").foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                List {
-                    Section("Info") {
-                        HStack {
-                            Text("Total")
-                            Spacer()
-                            MoneyEntryField(text: $totalStr, placeholder: "0.00", width: 110, isFocused: $moneyFieldFocused)
-                        }
-                        DatePicker("Date", selection: $date, displayedComponents: .date)
-                        Picker("Source", selection: $sourceId) {
-                            Text("None").tag(String?.none)
-                            ForEach(store.state.incomeSources) { source in
-                                Text(source.name).tag(String?.some(source.id))
-                            }
-                        }
-                        .pickerStyle(.menu)
-                        HStack {
-                            Text("Note")
-                            Spacer()
-                            TextField("Optional", text: $note)
-                                .multilineTextAlignment(.trailing)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-
-                    if total > 0 {
-                        if !store.activeBills.isEmpty {
-                            Section("Bills") {
-                                HStack(spacing: 10) {
-                                    Button("Half Bills") { fillBills(multiplier: 0.5) }
-                                        .buttonStyle(.bordered)
-                                    Button("Full Bills") { fillBills(multiplier: 1.0) }
-                                        .buttonStyle(.bordered)
-                                }
-                                .padding(.vertical, 2)
-                                ForEach(store.activeBills) { bill in
-                                    HStack(spacing: 12) {
-                                        Toggle("", isOn: Binding(
-                                            get: { includedBills.contains(bill.id) },
-                                            set: { isIncluded in
-                                                if isIncluded {
-                                                    includedBills.insert(bill.id)
-                                                    if billAmounts[bill.id] == nil {
-                                                        billAmounts[bill.id] = String(format: "%.2f", bill.amount)
-                                                    }
-                                                } else {
-                                                    includedBills.remove(bill.id)
-                                                }
-                                            }
-                                        ))
-                                        .labelsHidden()
-                                        Text(bill.name)
-                                        Spacer()
-                                        MoneyEntryField(text: Binding(
-                                            get: { billAmounts[bill.id] ?? String(format: "%.2f", bill.amount) },
-                                            set: { billAmounts[bill.id] = $0 }
-                                        ), placeholder: "0.00", width: 92, isFocused: $moneyFieldFocused)
-                                        .disabled(!includedBills.contains(bill.id))
-                                        .foregroundStyle(includedBills.contains(bill.id) ? Color.primary : Color.secondary)
-                                    }
-                                }
-                            }
-                        }
-
-                        Section {
-                            VStack(spacing: 8) {
-                                HStack {
-                                    Text("After bills")
-                                    Spacer()
-                                    Text(fmt(envelopeMoney))
-                                }
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-
-                                // Leftover money isn't an error — it just settles into
-                                // Savings. Over-allocating (spoken for more than you have)
-                                // is the only case worth flagging.
-                                let remainingLabel = isGood ? "Fully allocated"
-                                    : remaining > 0 ? "\(fmt(remaining)) → Savings"
-                                    : "Over-allocated by \(fmt(-remaining))"
-                                let color: Color = isGood ? .green : remaining > 0 ? .secondary : .red
-                                HStack {
-                                    Text(remainingLabel)
-                                        .font(.subheadline.weight(.semibold))
-                                        .foregroundStyle(color)
-                                    Spacer()
-                                    Text("\(fmt(allocated)) / \(fmt(envelopeMoney))")
-                                        .font(.subheadline).foregroundStyle(.secondary)
-                                }
-                            }
-                        }
-                    }
-
-                    Section("Allocate") {
-                        ForEach(store.activeBuckets) { bucket in
-                            HStack(spacing: 12) {
-                                RoundedRectangle(cornerRadius: 7)
-                                    .fill(bucket.color).frame(width: 26, height: 26)
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(bucket.name)
-                                    if let hint = allocationHint(for: bucket) {
-                                        Text(hint)
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
-                                    }
-                                }
-                                Spacer()
-                                MoneyEntryField(text: Binding(
-                                    get: { allocs[bucket.id] ?? "" },
-                                    set: { allocs[bucket.id] = $0 }
-                                ), placeholder: "0", width: 86, isFocused: $moneyFieldFocused)
-                                if let suggested = suggestedAllocation(for: bucket),
-                                   let label = allocationButtonLabel(for: bucket) {
-                                    Button(label) {
-                                        allocs[bucket.id] = String(format: "%.2f", suggested)
-                                    }
-                                    .font(.system(size: 12, weight: .semibold))
-                                    .buttonStyle(.bordered)
-                                    .disabled(total <= 0)
-                                }
-                                if let goalNeed = store.suggestedGoalContribution(for: bucket), goalNeed > 0 {
-                                    Button("Goal") {
-                                        allocs[bucket.id] = String(format: "%.2f", goalNeed.rounded(.up))
-                                    }
-                                    .font(.system(size: 12, weight: .semibold))
-                                    .buttonStyle(.bordered)
-                                    .disabled(total <= 0)
-                                }
-                            }
-                        }
-                    }
-
-                    Section {
-                        Button { handleSave() } label: {
-                            Text(isEditing ? "Update Income" : "Save Income")
-                                .frame(maxWidth: .infinity).font(.headline)
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .tint(accentColor)
-                        .disabled(total <= 0)
-                    }
-                    .listRowBackground(Color.clear)
-                    .listRowInsets(.init(top: 8, leading: 0, bottom: 8, trailing: 0))
-                }
-                .listStyle(.insetGrouped)
-                .navigationTitle(isEditing ? "Edit Income" : "Add Income")
-                .onAppear { prepareForm() }
-                .toolbar {
-                    ToolbarItemGroup(placement: .keyboard) {
-                        Spacer()
-                        Button {
-                            hideKeyboard()
-                        } label: {
-                            Text("Done")
-                                .fontWeight(.semibold)
-                        }
-                        .accessibilityLabel("Close keyboard")
-                    }
+            Group {
+                if saved {
+                    savedState(accentColor)
+                } else {
+                    form(accentColor)
                 }
             }
+            .screenBackground()
+            .navigationTitle(isEditing ? "Edit Income" : "Add Income")
         }
         .environment(\.tabAccentColor, accentColor)
     }
+
+    // MARK: - Saved
+
+    @ViewBuilder
+    private func savedState(_ accent: Color) -> some View {
+        VStack(spacing: 14) {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 72))
+                .foregroundStyle(Color.green.gradient)
+                .symbolEffect(.bounce, value: saved)
+            Text(isEditing ? "Income updated" : "Income saved")
+                .font(.title.bold())
+            Text(isEditing ? "Your changes are in." : "Nice work staying on top of it.")
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .overlay {
+            if !isEditing { ConfettiView() }
+        }
+    }
+
+    // MARK: - Form
+
+    @ViewBuilder
+    private func form(_ accent: Color) -> some View {
+        List {
+            Section {
+                totalCard(accent)
+            }
+            .cardRow()
+
+            Section("Details") {
+                DatePicker("Date", selection: $date, displayedComponents: .date)
+                Picker("Source", selection: $sourceId) {
+                    Text("None").tag(String?.none)
+                    ForEach(store.state.incomeSources) { source in
+                        Text(source.name).tag(String?.some(source.id))
+                    }
+                }
+                .pickerStyle(.menu)
+                HStack {
+                    Text("Note")
+                    Spacer()
+                    TextField("Optional", text: $note)
+                        .multilineTextAlignment(.trailing)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            if total > 0 {
+                if !store.activeBills.isEmpty {
+                    Section {
+                        ForEach(store.activeBills) { bill in
+                            billRow(bill)
+                        }
+                    } header: {
+                        HStack {
+                            Text("Bills")
+                            Spacer()
+                            HStack(spacing: 6) {
+                                Button("Half") { fillBills(multiplier: 0.5) }
+                                    .buttonStyle(.pill(accent, compact: true))
+                                Button("Full") { fillBills(multiplier: 1.0) }
+                                    .buttonStyle(.pill(accent, compact: true))
+                            }
+                            .textCase(nil)
+                        }
+                    }
+                }
+
+                Section {
+                    summaryCard(accent)
+                }
+                .cardRow()
+            }
+
+            Section("Allocate") {
+                ForEach(allocationBuckets) { bucket in
+                    allocationRow(bucket, accent: accent)
+                }
+            }
+
+            Section {
+                Button { handleSave() } label: {
+                    Text(isEditing ? "Update Income" : "Save Income")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 6)
+                }
+                .buttonStyle(.borderedProminent)
+                .buttonBorderShape(.capsule)
+                .controlSize(.large)
+                .tint(accent)
+                .disabled(total <= 0)
+            }
+            .cardRow(verticalPadding: 4)
+        }
+        .listStyle(.insetGrouped)
+        .listSectionSpacing(14)
+        .onAppear { prepareForm() }
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button {
+                    hideKeyboard()
+                } label: {
+                    Text("Done")
+                        .fontWeight(.semibold)
+                }
+                .accessibilityLabel("Close keyboard")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func totalCard(_ accent: Color) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Total Received")
+                .sectionLabelStyle()
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                Text("$")
+                    .font(.system(size: 28, weight: .bold, design: .rounded))
+                    .foregroundStyle(.secondary)
+                TextField("0.00", text: $totalStr)
+                    .keyboardType(.decimalPad)
+                    .font(.system(size: 40, weight: .bold, design: .rounded))
+                    .monospacedDigit()
+                    .focused($moneyFieldFocused)
+            }
+            if total > 0, billTotal > 0 {
+                Text("\(fmt(billTotal)) set aside for bills · \(fmt(envelopeMoney)) to allocate")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .heroCard(tint: accent)
+        .contentShape(Rectangle())
+        .onTapGesture { moneyFieldFocused = true }
+    }
+
+    @ViewBuilder
+    private func billRow(_ bill: Bill) -> some View {
+        let included = includedBills.contains(bill.id)
+        HStack(spacing: 12) {
+            Toggle("", isOn: Binding(
+                get: { included },
+                set: { isIncluded in
+                    if isIncluded {
+                        includedBills.insert(bill.id)
+                        if billAmounts[bill.id] == nil {
+                            billAmounts[bill.id] = String(format: "%.2f", bill.amount)
+                        }
+                    } else {
+                        includedBills.remove(bill.id)
+                    }
+                }
+            ))
+            .labelsHidden()
+            Text(bill.name)
+                .foregroundStyle(included ? Color.primary : Color.secondary)
+            Spacer()
+            MoneyEntryField(text: Binding(
+                get: { billAmounts[bill.id] ?? String(format: "%.2f", bill.amount) },
+                set: { billAmounts[bill.id] = $0 }
+            ), placeholder: "0.00", width: 92, isFocused: $moneyFieldFocused)
+            .disabled(!included)
+            .foregroundStyle(included ? Color.primary : Color.secondary)
+        }
+    }
+
+    @ViewBuilder
+    private func summaryCard(_ accent: Color) -> some View {
+        // Leftover money isn't an error — it just settles into Savings.
+        // Over-allocating (spoken for more than you have) is the only case
+        // worth flagging.
+        let statusLabel = isGood ? "Fully allocated"
+            : remaining > 0 ? "\(fmt(remaining)) → Savings"
+            : "Over by \(fmt(-remaining))"
+        let statusColor: Color = isGood ? .green : remaining > 0 ? accent : .red
+        let progress = envelopeMoney > 0 ? allocated / envelopeMoney : 0
+
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("After bills")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text(fmt(envelopeMoney))
+                        .font(.system(size: 22, weight: .bold, design: .rounded))
+                        .monospacedDigit()
+                }
+                Spacer()
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(statusLabel)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(statusColor)
+                    Text("\(fmt(allocated)) allocated")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            GoalBar(progress: progress, color: statusColor, height: 6)
+        }
+        .surfaceCard()
+    }
+
+    @ViewBuilder
+    private func allocationRow(_ bucket: Bucket, accent: Color) -> some View {
+        HStack(spacing: 12) {
+            BucketBadge(bucket: bucket, size: 30)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(bucket.name)
+                    .lineLimit(1)
+                if let hint = allocationHint(for: bucket) {
+                    Text(hint)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                let suggested = suggestedAllocation(for: bucket)
+                let goalNeed = store.suggestedGoalContribution(for: bucket)
+                if (suggested != nil) || (goalNeed ?? 0) > 0 {
+                    HStack(spacing: 6) {
+                        if let suggested, let label = allocationButtonLabel(for: bucket) {
+                            Button(label) {
+                                allocs[bucket.id] = String(format: "%.2f", suggested)
+                            }
+                            .buttonStyle(.pill(accent, compact: true))
+                            .disabled(total <= 0)
+                        }
+                        if let goalNeed, goalNeed > 0 {
+                            Button("Goal") {
+                                allocs[bucket.id] = String(format: "%.2f", goalNeed.rounded(.up))
+                            }
+                            .buttonStyle(.pill(bucket.color, compact: true))
+                            .disabled(total <= 0)
+                        }
+                    }
+                    .padding(.top, 2)
+                }
+            }
+            Spacer()
+            MoneyEntryField(text: Binding(
+                get: { allocs[bucket.id] ?? "" },
+                set: { allocs[bucket.id] = $0 }
+            ), placeholder: "0", width: 90, isFocused: $moneyFieldFocused)
+        }
+        .padding(.vertical, 2)
+    }
+
+    // MARK: - Actions
 
     private func handleSave() {
         guard total > 0 else { return }
@@ -222,7 +332,7 @@ struct AddIncomeView: View {
                 paidDate: existing?.paidDate
             )
         }
-        var finalAllocations = store.activeBuckets.compactMap { b -> Allocation? in
+        var finalAllocations = allocationBuckets.compactMap { b -> Allocation? in
             guard let v = Double(allocs[b.id] ?? ""), v > 0 else { return nil }
             return Allocation(bucketId: b.id, amount: v)
         }
@@ -250,12 +360,14 @@ struct AddIncomeView: View {
         } else {
             store.addIncome(income)
         }
-        saved = true
+        hideKeyboard()
+        withAnimation { saved = true }
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
             if isEditing {
                 onSaved?()
             } else {
-                saved = false; totalStr = ""; allocs = [:]; note = ""; date = Date(); sourceId = nil
+                withAnimation { saved = false }
+                totalStr = ""; allocs = [:]; note = ""; date = Date(); sourceId = nil
                 billAmounts = [:]; includedBills = []; prepareBills()
             }
         }

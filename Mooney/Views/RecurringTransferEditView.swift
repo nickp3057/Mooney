@@ -80,6 +80,7 @@ struct RecurringTransferEditView: View {
                         .foregroundStyle(Color.helperText)
                 }
             }
+            .screenBackground()
             .navigationTitle("Edit Transfer")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

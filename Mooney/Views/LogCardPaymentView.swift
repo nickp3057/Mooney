@@ -67,6 +67,7 @@ struct LogCardPaymentView: View {
                         .foregroundStyle(Color.helperText)
                 }
             }
+            .screenBackground()
             .navigationTitle("Log Payment")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

@@ -10,6 +10,7 @@ struct IncomeSourceAddView: View {
             Form {
                 TextField("Source name", text: $name)
             }
+            .screenBackground()
             .navigationTitle("New Source")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

@@ -69,6 +69,7 @@ struct BucketAddView: View {
                         .foregroundStyle(Color.helperText)
                 }
             }
+            .screenBackground()
             .navigationTitle("New Bucket")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

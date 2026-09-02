@@ -17,11 +17,16 @@ struct RecurringTransfersSettingsView: View {
                             }
                         }
                 }
-                Button("+ New Recurring Transfer") { showAddTransfer = true }
-                    .foregroundStyle(accentColor)
+                Button { showAddTransfer = true } label: {
+                    AddRow(title: "New Recurring Transfer", tint: accentColor)
+                }
+                .buttonStyle(.plain)
+            } footer: {
+                Text("Scheduled deposits post automatically when the app opens on or after each due date.")
             }
         }
-        .listStyle(.plain)
+        .listStyle(.insetGrouped)
+        .screenBackground()
         .navigationTitle("Recurring Transfers")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $editingTransfer) { RecurringTransferEditView(transfer: $0) }

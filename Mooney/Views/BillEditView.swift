@@ -36,6 +36,7 @@ struct BillEditView: View {
                     Button("Delete Bill", role: .destructive) { showDelete = true }
                 }
             }
+            .screenBackground()
             .navigationTitle("Edit Bill")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

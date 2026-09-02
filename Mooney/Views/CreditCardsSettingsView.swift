@@ -17,11 +17,14 @@ struct CreditCardsSettingsView: View {
                             }
                         }
                 }
-                Button("+ New Credit Card") { showAdd = true }
-                    .foregroundStyle(accentColor)
+                Button { showAdd = true } label: {
+                    AddRow(title: "New Credit Card", tint: accentColor)
+                }
+                .buttonStyle(.plain)
             }
         }
-        .listStyle(.plain)
+        .listStyle(.insetGrouped)
+        .screenBackground()
         .navigationTitle("Credit Cards")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $editingCard) { CreditCardEditView(card: $0) }

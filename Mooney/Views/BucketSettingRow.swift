@@ -8,9 +8,9 @@ struct BucketSettingRow: View {
 
     var meta: String {
         var p: [String] = []
-        if bucket.isGeneral   { p.append("general") }
+        if bucket.isGeneral   { p.append("main savings") }
         if bucket.isSpending  { p.append("spending") }
-        if let g = bucket.goal { p.append("goal: \(fmt(g))") }
+        if let g = bucket.goal { p.append("goal \(fmt(g))") }
         if let d = bucket.goalDate { p.append("by \(fmtDate(d))") }
         if bucket.archived    { p.append("archived") }
         return p.isEmpty ? "savings bucket" : p.joined(separator: " · ")
@@ -18,31 +18,25 @@ struct BucketSettingRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            BucketBadge(bucket: bucket, size: 26)
+            BucketBadge(bucket: bucket, size: 32)
             VStack(alignment: .leading, spacing: 2) {
-                Text(bucket.name)
-                Text(meta).font(.caption).foregroundStyle(.secondary)
+                Text(bucket.name).lineLimit(1)
+                Text(meta).font(.caption).foregroundStyle(.secondary).lineLimit(1)
             }
             Spacer()
             if !bucket.archived {
-                Button(bucket.isActive ? "Active" : "Activate") {
+                Button {
                     store.toggleActive(id: bucket.id)
+                } label: {
+                    StatusChip(title: bucket.isActive ? "Active" : "Paused", isOn: bucket.isActive, tint: accentColor)
                 }
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(bucket.isActive ? accentColor : .secondary)
-                .padding(.horizontal, 10).padding(.vertical, 4)
-                .background(bucket.isActive ? accentColor.opacity(0.15) : Color(.systemGray6))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
                 .buttonStyle(.plain)
-
-                Button("Edit", action: onEdit)
-                    .font(.system(size: 13)).foregroundStyle(.secondary)
-                    .padding(.horizontal, 10).padding(.vertical, 4)
-                    .background(Color(.systemGray6))
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                    .buttonStyle(.plain)
             }
+            Image(systemName: "chevron.right")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(.tertiary)
         }
-        .bubbleCardRow()
+        .contentShape(Rectangle())
+        .onTapGesture(perform: onEdit)
     }
 }

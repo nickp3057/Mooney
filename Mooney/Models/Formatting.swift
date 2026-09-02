@@ -60,3 +60,15 @@ func fmtDueDate(_ iso: String) -> String {
 func todayISO() -> String {
     isoDateFormatter.string(from: Date())
 }
+
+// "1st", "22nd", "13th" — for day-of-month labels.
+func ordinal(_ n: Int) -> String {
+    let suffix: String
+    switch (n % 10, n % 100) {
+    case (1, let h) where h != 11: suffix = "st"
+    case (2, let h) where h != 12: suffix = "nd"
+    case (3, let h) where h != 13: suffix = "rd"
+    default: suffix = "th"
+    }
+    return "\(n)\(suffix)"
+}

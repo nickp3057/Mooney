@@ -25,6 +25,7 @@ struct BillAddView: View {
                     }
                 }
             }
+            .screenBackground()
             .navigationTitle("New Bill")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

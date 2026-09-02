@@ -17,11 +17,18 @@ struct BillsSettingsView: View {
                             }
                         }
                 }
-                Button("+ New Bill") { showAddBill = true }
-                    .foregroundStyle(accentColor)
+                Button { showAddBill = true } label: {
+                    AddRow(title: "New Bill", tint: accentColor)
+                }
+                .buttonStyle(.plain)
+            } footer: {
+                if !store.sortedBills.isEmpty {
+                    Text("Bills are set aside from each paycheck before anything is allocated to buckets.")
+                }
             }
         }
-        .listStyle(.plain)
+        .listStyle(.insetGrouped)
+        .screenBackground()
         .navigationTitle("Bills")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $editingBill) { BillEditView(bill: $0) }

@@ -54,6 +54,15 @@ struct CalendarView: View {
         return eventsByDay[selectedDate] ?? []
     }
 
+    // Subscription charges landing in the displayed month.
+    private var displayedMonthSubscriptionTotal: Double {
+        monthEvents.filter { $0.kind == .subscription }.compactMap(\.amount).reduce(0, +)
+    }
+
+    private var isShowingCurrentMonth: Bool {
+        cal.isDate(displayedMonth, equalTo: Date(), toGranularity: .month)
+    }
+
     private var gridDays: [Date?] {
         guard let interval = cal.dateInterval(of: .month, for: displayedMonth) else { return [] }
         let firstWeekday = cal.component(.weekday, from: interval.start)
@@ -77,88 +86,66 @@ struct CalendarView: View {
         NavigationStack {
             List {
                 Section {
-                    VStack(spacing: 12) {
-                        HStack {
-                            Button { changeMonth(by: -1) } label: { Image(systemName: "chevron.left") }
-                                .buttonStyle(.plain)
-                            Spacer()
-                            Text(monthTitle).font(.headline)
-                            Spacer()
-                            Button { changeMonth(by: 1) } label: { Image(systemName: "chevron.right") }
-                                .buttonStyle(.plain)
-                        }
-                        .foregroundStyle(accentColor)
+                    monthCard
+                }
+                .cardRow()
 
-                        HStack {
-                            ForEach(Array(weekdaySymbols.enumerated()), id: \.offset) { _, s in
-                                Text(s)
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundStyle(.secondary)
-                                    .frame(maxWidth: .infinity)
-                            }
-                        }
-
-                        LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 7), spacing: 6) {
-                            ForEach(Array(gridDays.enumerated()), id: \.offset) { _, day in
-                                dayCell(day)
-                            }
-                        }
-                        .id(displayedMonth)
-                        .contentShape(Rectangle())
-                        // .simultaneousGesture (not .gesture) so this never
-                        // claims the touch ahead of the List's own vertical
-                        // scroll pan — both get to recognize, and the
-                        // direction check below just no-ops on a vertical
-                        // drag instead of blocking the scroll.
-                        .simultaneousGesture(
-                            DragGesture(minimumDistance: 24)
-                                .onEnded { value in
-                                    let horizontal = value.translation.width
-                                    let vertical = value.translation.height
-                                    guard abs(horizontal) > abs(vertical) else { return }
-                                    changeMonth(by: horizontal < 0 ? 1 : -1)
-                                }
+                Section {
+                    HStack(spacing: 10) {
+                        StatTile(
+                            title: isShowingCurrentMonth ? "Due this month" : "Due in \(shortMonthTitle)",
+                            value: fmt(displayedMonthSubscriptionTotal),
+                            tint: accentColor,
+                            systemImage: "calendar"
+                        )
+                        StatTile(
+                            title: "Every month",
+                            value: fmt(store.monthlySubscriptionTotal),
+                            systemImage: "arrow.clockwise"
                         )
                     }
-                    .padding(.vertical, 4)
-                    .bubbleCard()
                 }
-                .listRowBackground(Color.clear)
-                .listRowSeparator(.hidden)
+                .cardRow()
 
                 if let selectedDate {
                     Section(agendaTitle(for: selectedDate)) {
                         if selectedDayEvents.isEmpty {
-                            Text("Nothing scheduled").foregroundStyle(.secondary)
+                            HStack(spacing: 12) {
+                                SoftIconTile(systemName: "checkmark", color: .secondary, size: 30)
+                                Text("Nothing scheduled").foregroundStyle(.secondary)
+                            }
                         } else {
                             ForEach(selectedDayEvents) { event in
                                 eventRow(event)
                             }
                         }
                     }
-                } else if store.state.subscriptions.isEmpty {
-                    Section("All Subscriptions") {
-                        Text("No subscriptions yet.").foregroundStyle(.secondary)
+                }
+
+                if store.state.subscriptions.isEmpty {
+                    Section {
+                        ContentUnavailableView {
+                            Label("No subscriptions yet", systemImage: "arrow.clockwise.circle")
+                        } description: {
+                            Text("Add the things that bill you every month or year to see them on the calendar.")
+                        } actions: {
+                            Button("Add Subscription") { showAdd = true }
+                                .buttonStyle(.pill(accentColor, prominent: true))
+                        }
+                        .padding(.vertical, 8)
                     }
+                    .cardRow()
                 } else {
                     Section {
-                        VStack(spacing: 12) {
-                            HStack {
-                                Text("Total / mo")
-                                Spacer()
-                                Text(fmt(store.monthlySubscriptionTotal)).foregroundStyle(.secondary)
+                        Picker("Sort by", selection: $sortOption) {
+                            ForEach(SubscriptionSortOption.allCases) { option in
+                                Text(option.rawValue).tag(option)
                             }
-                            Picker("Sort by", selection: $sortOption) {
-                                ForEach(SubscriptionSortOption.allCases) { option in
-                                    Text(option.rawValue).tag(option)
-                                }
-                            }
-                            .pickerStyle(.segmented)
                         }
-                        .bubbleCard()
+                        .pickerStyle(.segmented)
                     }
-                    .listRowBackground(Color.clear)
-                    .listRowSeparator(.hidden)
+                    .cardRow()
+
                     if !monthlySubscriptionsSorted.isEmpty {
                         Section("Monthly") {
                             ForEach(monthlySubscriptionsSorted) { sub in
@@ -175,7 +162,9 @@ struct CalendarView: View {
                     }
                 }
             }
-            .listStyle(.plain)
+            .listStyle(.insetGrouped)
+            .listSectionSpacing(14)
+            .screenBackground()
             .navigationTitle("Subscriptions")
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
@@ -196,7 +185,90 @@ struct CalendarView: View {
         .environment(\.tabAccentColor, accentColor)
     }
 
+    private var shortMonthTitle: String {
+        let df = DateFormatter()
+        df.dateFormat = "MMM"
+        return df.string(from: displayedMonth)
+    }
+
+    // MARK: - Month grid
+
+    private var monthCard: some View {
+        VStack(spacing: 14) {
+            HStack {
+                monthNavButton("chevron.left") { changeMonth(by: -1) }
+                Spacer()
+                Button {
+                    withAnimation(.snappy) {
+                        displayedMonth = cal.startOfDay(for: Date())
+                        selectedDate = cal.startOfDay(for: Date())
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        Text(monthTitle)
+                            .font(.headline)
+                            .foregroundStyle(.primary)
+                        if !isShowingCurrentMonth {
+                            Text("Today")
+                                .font(.caption2.weight(.bold))
+                                .foregroundStyle(accentColor)
+                                .padding(.horizontal, 7)
+                                .padding(.vertical, 3)
+                                .background(Capsule().fill(accentColor.opacity(0.14)))
+                        }
+                    }
+                }
+                .buttonStyle(.plain)
+                Spacer()
+                monthNavButton("chevron.right") { changeMonth(by: 1) }
+            }
+
+            HStack {
+                ForEach(Array(weekdaySymbols.enumerated()), id: \.offset) { _, s in
+                    Text(s)
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(.tertiary)
+                        .frame(maxWidth: .infinity)
+                }
+            }
+
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 7), spacing: 4) {
+                ForEach(Array(gridDays.enumerated()), id: \.offset) { _, day in
+                    dayCell(day)
+                }
+            }
+            .id(displayedMonth)
+            .contentShape(Rectangle())
+            // .simultaneousGesture (not .gesture) so this never claims the
+            // touch ahead of the List's own vertical scroll pan — both get
+            // to recognize, and the direction check below just no-ops on a
+            // vertical drag instead of blocking the scroll.
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 24)
+                    .onEnded { value in
+                        let horizontal = value.translation.width
+                        let vertical = value.translation.height
+                        guard abs(horizontal) > abs(vertical) else { return }
+                        changeMonth(by: horizontal < 0 ? 1 : -1)
+                    }
+            )
+        }
+        .surfaceCard()
+    }
+
+    private func monthNavButton(_ symbol: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(accentColor)
+                .frame(width: 30, height: 30)
+                .background(Circle().fill(accentColor.opacity(0.14)))
+        }
+        .buttonStyle(.plain)
+    }
+
     private func agendaTitle(for date: Date) -> String {
+        if cal.isDateInToday(date) { return "Today" }
         let df = DateFormatter()
         df.dateFormat = "EEEE, MMM d"
         return df.string(from: date)
@@ -214,113 +286,128 @@ struct CalendarView: View {
             let isSelected = selectedDate.map { cal.isDate(day, inSameDayAs: $0) } ?? false
             let isToday = cal.isDateInToday(day)
             Button {
-                if let selectedDate, cal.isDate(day, inSameDayAs: selectedDate) {
-                    self.selectedDate = nil
-                } else {
-                    selectedDate = day
+                withAnimation(.snappy(duration: 0.2)) {
+                    if let selectedDate, cal.isDate(day, inSameDayAs: selectedDate) {
+                        self.selectedDate = nil
+                    } else {
+                        selectedDate = day
+                    }
                 }
             } label: {
                 VStack(spacing: 3) {
                     Text("\(cal.component(.day, from: day))")
-                        .font(.system(size: 16, weight: isToday ? .bold : .regular))
+                        .font(.system(size: 15, weight: isToday || isSelected ? .bold : .regular, design: .rounded))
                         .foregroundStyle(isSelected ? Color.white : (isToday ? accentColor : .primary))
-                        .frame(width: 30, height: 30)
+                        .frame(width: 32, height: 32)
                         .background(
-                            Circle().fill(isSelected ? accentColor : Color.clear)
+                            Circle().fill(isSelected ? accentColor : (isToday ? accentColor.opacity(0.14) : Color.clear))
                         )
-                    if subscriptionEvents.isEmpty && !hasPaycheck && cardEvents.isEmpty {
-                        Color.clear.frame(height: 10)
-                    } else {
-                        HStack(spacing: 2) {
-                            if !subscriptionEvents.isEmpty {
-                                Text(fmtCompact(subscriptionTotal))
-                                    .font(.system(size: 9, weight: .semibold))
-                                    .foregroundStyle(Color(hex: "#5E5CE6"))
-                                    .lineLimit(1)
-                                    .minimumScaleFactor(0.7)
-                            }
-                            if hasPaycheck {
-                                Text("$")
-                                    .font(.system(size: 9, weight: .bold))
-                                    .foregroundStyle(Color(hex: "#34C759"))
-                            }
-                            if !cardEvents.isEmpty {
-                                Circle().fill(Color(hex: cardColorHex)).frame(width: 4, height: 4)
-                            }
+                    HStack(spacing: 2) {
+                        if !subscriptionEvents.isEmpty {
+                            Text(fmtCompact(subscriptionTotal))
+                                .font(.system(size: 9, weight: .bold, design: .rounded))
+                                .foregroundStyle(Color(hex: "#5E5CE6"))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.7)
                         }
-                        .frame(height: 10)
+                        if hasPaycheck {
+                            Text("$")
+                                .font(.system(size: 9, weight: .heavy, design: .rounded))
+                                .foregroundStyle(Color(hex: "#34C759"))
+                        }
+                        if !cardEvents.isEmpty {
+                            Circle().fill(Color(hex: cardColorHex)).frame(width: 5, height: 5)
+                        }
                     }
+                    .frame(height: 11)
                 }
+                .frame(maxWidth: .infinity)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
         } else {
-            Color.clear.frame(height: 48)
+            Color.clear.frame(height: 46)
         }
     }
 
     private func iconName(for kind: CalendarEvent.Kind) -> String {
         switch kind {
-        case .subscription: return "arrow.clockwise.circle.fill"
+        case .subscription: return "arrow.clockwise"
         case .cardPayment:  return "creditcard.fill"
-        case .paycheck:     return "dollarsign.circle.fill"
+        case .paycheck:     return "dollarsign"
         }
     }
+
+    // MARK: - Rows
 
     @ViewBuilder
     private func eventRow(_ event: CalendarEvent) -> some View {
         Button {
             handleTap(event)
         } label: {
-            HStack(spacing: 10) {
-                Image(systemName: iconName(for: event.kind))
-                    .foregroundStyle(Color(hex: event.colorHex))
-                    .frame(width: 22, height: 22)
+            HStack(spacing: 12) {
+                IconTile(systemName: iconName(for: event.kind), color: Color(hex: event.colorHex), size: 32)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(event.title).foregroundStyle(.primary)
                     Text(event.subtitle).font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
+                if let amount = event.amount {
+                    Text(fmt(amount))
+                        .font(.body.weight(.semibold))
+                        .monospacedDigit()
+                        .foregroundStyle(.primary)
+                } else if event.kind != .paycheck {
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.tertiary)
+                }
             }
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .bubbleCardRow()
     }
 
     @ViewBuilder
     private func subscriptionRow(_ sub: Subscription) -> some View {
         let cardName = sub.creditCardId.flatMap { id in store.state.creditCards.first { $0.id == id }?.name }
         let dueISO = sub.upcomingDueDate().map { isoDateFormatter.string(from: $0) } ?? sub.nextDueDate
+        let initial = String(sub.name.trimmingCharacters(in: .whitespaces).prefix(1)).uppercased()
         Button { editingSubscription = sub } label: {
             HStack(spacing: 12) {
-                Image(systemName: "arrow.clockwise.circle.fill")
-                    .foregroundStyle(accentColor)
-                    .frame(width: 26, height: 26)
-                VStack(alignment: .leading, spacing: 2) {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(accentColor.opacity(0.16))
+                    .frame(width: 34, height: 34)
+                    .overlay {
+                        Text(initial.isEmpty ? "•" : initial)
+                            .font(.system(size: 16, weight: .bold, design: .rounded))
+                            .foregroundStyle(accentColor)
+                    }
+                VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 6) {
-                        Text(sub.name).font(.headline).foregroundStyle(.primary)
+                        Text(sub.name)
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(.primary)
+                            .lineLimit(1)
                         if sub.status != .active {
-                            Text(sub.status.label)
-                                .font(.caption2.weight(.semibold))
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(Color(.systemGray5))
-                                .clipShape(Capsule())
-                                .foregroundStyle(.secondary)
+                            StatusChip(title: sub.status.label, isOn: false, tint: accentColor)
                         }
                     }
                     Text("\(sub.cadence.label) · due \(fmtDueDate(dueISO))\(cardName.map { " · \($0)" } ?? "")")
-                        .font(.caption).foregroundStyle(.secondary)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
                 }
                 Spacer()
                 Text(fmt(sub.amount))
-                    .font(.title3.weight(.semibold))
+                    .font(.system(size: 17, weight: .semibold, design: .rounded))
                     .monospacedDigit()
                     .foregroundStyle(.primary)
             }
-            .opacity(sub.status == .active ? 1 : 0.5)
+            .opacity(sub.status == .active ? 1 : 0.55)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .bubbleCardRow()
     }
 
     private func handleTap(_ event: CalendarEvent) {
@@ -338,7 +425,9 @@ struct CalendarView: View {
     }
 
     private func changeMonth(by delta: Int) {
-        displayedMonth = cal.date(byAdding: .month, value: delta, to: displayedMonth) ?? displayedMonth
+        withAnimation(.snappy(duration: 0.25)) {
+            displayedMonth = cal.date(byAdding: .month, value: delta, to: displayedMonth) ?? displayedMonth
+        }
     }
 }
 

@@ -42,6 +42,7 @@ struct SubscriptionAddView: View {
                     .pickerStyle(.menu)
                 }
             }
+            .screenBackground()
             .navigationTitle("New Subscription")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

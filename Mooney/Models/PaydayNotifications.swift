@@ -48,7 +48,7 @@ enum PaydayNotifications {
     // rebuilds rather than appending, so it can't double-schedule.
     static func reschedule(from schedule: PaySchedule?) {
         cancelAll()
-        guard isEnabled, let schedule, let anchor = isoDateFormatter.date(from: schedule.nextPayDate) else { return }
+        guard isEnabled, let schedule, let anchor = schedule.upcomingPayDate() else { return }
         let cal = Calendar.current
         var date = anchor
         let center = UNUserNotificationCenter.current()

@@ -181,9 +181,33 @@ class AppStore {
     }
     func addBucket(_ b: Bucket)          { state.buckets.append(b); save() }
     func deleteBucket(id: String) {
-        guard state.buckets.first(where: { $0.id == id })?.isGeneral != true else { return }
+        guard let bucket = state.buckets.first(where: { $0.id == id }), !bucket.isGeneral else { return }
+        // Whatever was in it moves to the general bucket as an auditable
+        // adjustment, so deleting a bucket never changes total savings.
+        moveBalanceToGeneral(from: bucket, note: "Moved from \(bucket.name) (deleted)")
         state.buckets.removeAll { $0.id == id }
         save()
+    }
+
+    // Shifts a bucket's remaining balance into the general bucket. Used when
+    // a bucket stops being a tracked savings bucket (deleted, archived, or
+    // switched to spending) so its money stays counted instead of vanishing.
+    private func moveBalanceToGeneral(from bucket: Bucket, note: String) {
+        guard !bucket.isGeneral, !bucket.isSpending,
+              let generalId = generalBucket?.id, generalId != bucket.id else { return }
+        let remaining = balance(for: bucket.id)
+        guard abs(remaining) >= 0.005 else { return }
+        let date = todayISO()
+        let outId = UUID().uuidString
+        let inId = UUID().uuidString
+        state.transactions.append(AppTransaction(
+            id: outId, bucketId: bucket.id, amount: -remaining, date: date,
+            note: note, type: "transfer", linkedId: inId
+        ))
+        state.transactions.append(AppTransaction(
+            id: inId, bucketId: generalId, amount: remaining, date: date,
+            note: note, type: "transfer", linkedId: outId
+        ))
     }
     func addBill(_ b: Bill)              { state.bills.append(b); save() }
     func deleteBill(id: String)          { state.bills.removeAll { $0.id == id }; save() }
@@ -200,6 +224,11 @@ class AppStore {
         // The general bucket must stay a savings bucket — it's what makes
         // bucket balances always sum to total savings.
         if !state.buckets[i].isGeneral {
+            if isSpending && !state.buckets[i].isSpending {
+                // A spending bucket isn't part of total savings, so hand
+                // its balance back to the general bucket before the switch.
+                moveBalanceToGeneral(from: state.buckets[i], note: "Moved from \(name) (now spending)")
+            }
             state.buckets[i].isSpending = isSpending
         }
         save()
@@ -241,6 +270,7 @@ class AppStore {
     func archiveBucket(id: String) {
         guard let i = state.buckets.firstIndex(where: { $0.id == id }),
               !state.buckets[i].isGeneral else { return }
+        moveBalanceToGeneral(from: state.buckets[i], note: "Moved from \(state.buckets[i].name) (archived)")
         state.buckets[i].archived = true
         state.buckets[i].isActive = false
         save()
@@ -362,8 +392,11 @@ class AppStore {
     // `end`, inclusive. Used both for the goal-contribution math and the
     // Calendar view, so both stay in sync with a single source of truth.
     func payDates(through end: Date) -> [Date] {
+        // The stored anchor is never advanced, so roll it forward to the
+        // next real pay date first — otherwise months of already-passed
+        // paydays would be counted toward a goal.
         guard let schedule = state.paySchedule,
-              let start = isoDateFormatter.date(from: schedule.nextPayDate) else { return [] }
+              let start = schedule.upcomingPayDate() else { return [] }
         var dates: [Date] = []
         var date = start
         while date <= end {
@@ -641,7 +674,12 @@ class AppStore {
         unpaidBillGroups.first { $0.billId == billId }
     }
 
-    var totalSavings: Double      { savingsBuckets.reduce(0) { $0 + balance(for: $1.id) } + unpaidBillsTotal }
+    // Every non-spending bucket counts — including paused/"planned" and
+    // archived ones — so deactivating a bucket never makes its money
+    // disappear from the total. (savingsBalancePoints uses the same set.)
+    var totalSavings: Double {
+        state.buckets.filter { !$0.isSpending }.reduce(0) { $0 + balance(for: $1.id) } + unpaidBillsTotal
+    }
 
     // Quick correction for the whole total (initial setup, interest, etc.) —
     // logs the delta as an adjustment on the general bucket instead of
@@ -779,7 +817,8 @@ class AppStore {
                 subtitle: sourceName.map { "Income · \($0)" } ?? "Income · Deposit",
                 amount: p.amount,
                 bucketId: nil,
-                colorHex: "#8E8E93"
+                colorHex: "#34C759",
+                kind: .income
             ))
         }
         for t in state.transactions.reversed() {
@@ -803,7 +842,8 @@ class AppStore {
                     amount: -t.amount,
                     bucketId: nil,
                     colorHex: "#8E8E93",
-                    isTransfer: true
+                    isTransfer: true,
+                    kind: .transfer
                 ))
                 continue
             }
@@ -815,7 +855,8 @@ class AppStore {
                 subtitle: bucket?.name ?? t.type.capitalized,
                 amount: t.amount,
                 bucketId: t.bucketId,
-                colorHex: bucket?.colorHex ?? "#8E8E93"
+                colorHex: bucket?.colorHex ?? "#8E8E93",
+                kind: LedgerEntry.kind(forTransactionType: t.type, isLinkedTransfer: false)
             ))
         }
         return items.sorted { $0.date > $1.date }

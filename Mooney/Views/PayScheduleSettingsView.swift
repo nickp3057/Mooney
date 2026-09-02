@@ -40,6 +40,7 @@ struct PayScheduleSettingsView: View {
                 }
             }
         }
+        .screenBackground()
         .navigationTitle("Paycheck Schedule")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {

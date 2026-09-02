@@ -117,6 +117,7 @@ struct BucketEditView: View {
                     }
                 }
             }
+            .screenBackground()
             .navigationTitle("Edit \(bucket.name)")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

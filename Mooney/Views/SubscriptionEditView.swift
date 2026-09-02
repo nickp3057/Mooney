@@ -64,6 +64,7 @@ struct SubscriptionEditView: View {
                     Button("Delete Subscription", role: .destructive) { showDelete = true }
                 }
             }
+            .screenBackground()
             .navigationTitle("Edit Subscription")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

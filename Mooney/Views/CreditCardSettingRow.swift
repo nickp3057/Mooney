@@ -8,31 +8,24 @@ struct CreditCardSettingRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: "creditcard.fill")
-                .foregroundStyle(accentColor)
-                .frame(width: 26, height: 26)
+            IconTile(systemName: "creditcard.fill", color: accentColor, size: 32)
             VStack(alignment: .leading, spacing: 2) {
-                Text(card.name)
-                Text("Due on the \(card.dueDay)").font(.caption).foregroundStyle(.secondary)
+                Text(card.name).lineLimit(1)
+                Text("Due on the \(ordinal(card.dueDay))\(card.bankApp.map { " · \($0.label)" } ?? "")")
+                    .font(.caption).foregroundStyle(.secondary)
             }
             Spacer()
-            Button(card.isActive ? "Active" : "Off") {
+            Button {
                 store.toggleCreditCardActive(id: card.id)
+            } label: {
+                StatusChip(title: card.isActive ? "Active" : "Off", isOn: card.isActive, tint: accentColor)
             }
-            .font(.system(size: 13, weight: .semibold))
-            .foregroundStyle(card.isActive ? accentColor : .secondary)
-            .padding(.horizontal, 10).padding(.vertical, 4)
-            .background(card.isActive ? accentColor.opacity(0.15) : Color(.systemGray6))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
             .buttonStyle(.plain)
-
-            Button("Edit", action: onEdit)
-                .font(.system(size: 13)).foregroundStyle(.secondary)
-                .padding(.horizontal, 10).padding(.vertical, 4)
-                .background(Color(.systemGray6))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-                .buttonStyle(.plain)
+            Image(systemName: "chevron.right")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(.tertiary)
         }
-        .bubbleCardRow()
+        .contentShape(Rectangle())
+        .onTapGesture(perform: onEdit)
     }
 }

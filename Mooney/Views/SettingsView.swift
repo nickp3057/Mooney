@@ -30,15 +30,8 @@ struct SettingsView: View {
         NavigationStack {
             List {
                 if !store.isDecoyMode {
-                    Section("Security") {
-                        securityCard.bubbleCard()
-                    }
-                    .plainCardSection()
-
-                    Section("Notifications") {
-                        notificationsCard.bubbleCard()
-                    }
-                    .plainCardSection()
+                    Section("Security") { securityRows }
+                    Section("Notifications") { notificationRows }
                 }
 
                 Section {
@@ -49,52 +42,74 @@ struct SettingsView: View {
                         ),
                         palette: accentPalette
                     )
-                    .bubbleCard()
                 } header: {
                     Text("Appearance")
                 } footer: {
                     Text("Sets the app's default color. Tap the dashed circle to add a custom color, saved for reuse everywhere.")
-                        .foregroundStyle(Color.helperText)
                 }
-                .plainCardSection()
 
                 Section {
                     ForEach(AppTab.allCases) { tab in
-                        tabColorRow(tab).bubbleCardRow()
+                        tabColorRow(tab)
                     }
                 } header: {
                     Text("Tab Colors")
                 } footer: {
                     Text("Each tab can have its own color, used for its buttons, links, and highlights. Defaults to the color above.")
-                        .foregroundStyle(Color.helperText)
                 }
 
                 Section("Manage") {
-                    NavigationLink("Buckets") { BucketsSettingsView() }.bubbleCardRow()
-                    NavigationLink("Bills") { BillsSettingsView() }.bubbleCardRow()
-                    NavigationLink("Credit Cards") { CreditCardsSettingsView() }.bubbleCardRow()
-                    NavigationLink("Income Sources") { IncomeSourcesSettingsView() }.bubbleCardRow()
-                    NavigationLink("Recurring Transfers") { RecurringTransfersSettingsView() }.bubbleCardRow()
-                    NavigationLink("Paycheck Schedule") { PayScheduleSettingsView() }.bubbleCardRow()
+                    NavigationLink { BucketsSettingsView() } label: {
+                        SettingsLabel("Buckets", systemImage: "tray.2.fill", color: Color(hex: "#5856D6"))
+                    }
+                    NavigationLink { BillsSettingsView() } label: {
+                        SettingsLabel("Bills", systemImage: "doc.text.fill", color: Color(hex: "#FF9500"))
+                    }
+                    NavigationLink { CreditCardsSettingsView() } label: {
+                        SettingsLabel("Credit Cards", systemImage: "creditcard.fill", color: Color(hex: "#007AFF"))
+                    }
+                    NavigationLink { IncomeSourcesSettingsView() } label: {
+                        SettingsLabel("Income Sources", systemImage: "dollarsign", color: Color(hex: "#34C759"))
+                    }
+                    NavigationLink { RecurringTransfersSettingsView() } label: {
+                        SettingsLabel("Recurring Transfers", systemImage: "arrow.triangle.2.circlepath", color: Color(hex: "#30B0C7"))
+                    }
+                    NavigationLink { PayScheduleSettingsView() } label: {
+                        SettingsLabel("Paycheck Schedule", systemImage: "calendar.badge.clock", color: Color(hex: "#FF2D55"))
+                    }
                 }
 
                 Section("Records") {
-                    NavigationLink("History") { HistoryView() }.bubbleCardRow()
-                    NavigationLink("Notes") { NotesView() }.bubbleCardRow()
+                    NavigationLink { HistoryView() } label: {
+                        SettingsLabel("History", systemImage: "clock.arrow.circlepath", color: Color(hex: "#8E8E93"))
+                    }
+                    NavigationLink { NotesView() } label: {
+                        SettingsLabel("Notes", systemImage: "note.text", color: Color(hex: "#FFCC00"))
+                    }
                 }
 
                 if !store.isDecoyMode {
                     Section("Bank Connection") {
-                        NavigationLink("Connect Bank Account") { BankConnectionSettingsView() }.bubbleCardRow()
+                        NavigationLink { BankConnectionSettingsView() } label: {
+                            SettingsLabel("Connect Bank Account", systemImage: "building.columns.fill", color: Color(hex: "#00C7BE"))
+                        }
                     }
                 }
 
                 Section("Data") {
-                    dataCard.bubbleCard()
+                    Button { startExport() } label: {
+                        SettingsLabel("Export Backup", systemImage: "square.and.arrow.up", color: Color(hex: "#007AFF"))
+                    }
+                    Button { showImporter = true } label: {
+                        SettingsLabel("Import Backup", systemImage: "square.and.arrow.down", color: Color(hex: "#5856D6"))
+                    }
+                    Button(role: .destructive) { showResetConfirm = true } label: {
+                        SettingsLabel("Reset All Data", systemImage: "trash.fill", color: Color(hex: "#FF3B30"), titleColor: .red)
+                    }
                 }
-                .plainCardSection()
             }
-            .listStyle(.plain)
+            .listStyle(.insetGrouped)
+            .screenBackground()
             .navigationTitle("Settings")
             .sheet(item: $pinSheetKind) { kind in
                 switch kind {
@@ -172,92 +187,91 @@ struct SettingsView: View {
         .environment(\.tabAccentColor, accentColor)
     }
 
-    // Each `*Card` is a plain VStack of controls wrapped by the caller in
-    // `.bubbleCard()`. They're separate properties only to keep the `body`
+    // Each `*Rows` group is a separate property only to keep the `body`
     // expression small enough for the type-checker — inlining any one of
     // them pushes the whole List over its time limit.
 
     @ViewBuilder
-    private var securityCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Toggle("Require PIN", isOn: Binding(
-                get: { pinEnabled },
-                set: { newValue in
-                    if newValue { pinSheetKind = .real } else { showRemovePINConfirm = true }
+    private var securityRows: some View {
+        Toggle(isOn: Binding(
+            get: { pinEnabled },
+            set: { newValue in
+                if newValue { pinSheetKind = .real } else { showRemovePINConfirm = true }
+            }
+        )) {
+            SettingsLabel("Require PIN", systemImage: "lock.fill", color: Color(hex: "#FF3B30"))
+        }
+        if pinEnabled {
+            Button {
+                pinSheetKind = .decoy
+            } label: {
+                HStack {
+                    SettingsLabel("Decoy PIN", systemImage: "theatermasks.fill", color: Color(hex: "#AF52DE"))
+                    Spacer()
+                    Text(decoyEnabled ? "Change" : "Set Up").foregroundStyle(.secondary)
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.tertiary)
                 }
-            ))
-            if pinEnabled {
-                Divider()
-                Button {
-                    pinSheetKind = .decoy
+            }
+            .foregroundStyle(.primary)
+            if decoyEnabled {
+                Button(role: .destructive) {
+                    AppLockManager.removeDecoyPIN()
+                    decoyEnabled = false
                 } label: {
-                    HStack {
-                        Text("Decoy PIN")
-                        Spacer()
-                        Text(decoyEnabled ? "Change" : "Set Up").foregroundStyle(.secondary)
-                    }
+                    SettingsLabel("Remove Decoy PIN", systemImage: "theatermasks", color: Color(hex: "#8E8E93"), titleColor: .red)
                 }
-                .foregroundStyle(.primary)
-                if decoyEnabled {
-                    Divider()
-                    Button("Remove Decoy PIN", role: .destructive) {
-                        AppLockManager.removeDecoyPIN()
-                        decoyEnabled = false
+            }
+            if BiometricAuth.isAvailable {
+                Toggle(isOn: Binding(
+                    get: { faceIDEnabled },
+                    set: { newValue in
+                        faceIDEnabled = newValue
+                        BiometricAuth.isEnabled = newValue
                     }
-                }
-                if BiometricAuth.isAvailable {
-                    Divider()
-                    Toggle("Unlock with Face ID", isOn: Binding(
-                        get: { faceIDEnabled },
-                        set: { newValue in
-                            faceIDEnabled = newValue
-                            BiometricAuth.isEnabled = newValue
-                        }
-                    ))
+                )) {
+                    SettingsLabel("Unlock with Face ID", systemImage: "faceid", color: Color(hex: "#34C759"))
                 }
             }
         }
     }
 
     @ViewBuilder
-    private var notificationsCard: some View {
+    private var notificationRows: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Toggle("Payday Reminders", isOn: Binding(
+            Toggle(isOn: Binding(
                 get: { paydayRemindersEnabled },
                 set: { newValue in
                     PaydayNotifications.setEnabled(newValue, schedule: store.state.paySchedule) { granted in
                         paydayRemindersEnabled = granted
                     }
                 }
-            ))
+            )) {
+                SettingsLabel("Payday Reminders", systemImage: "bell.badge.fill", color: Color(hex: "#FF9500"))
+            }
             if paydayRemindersEnabled && store.state.paySchedule == nil {
                 Text("Set a pay schedule to start getting reminders.")
                     .font(.caption).foregroundStyle(Color.helperText)
+                    .padding(.leading, 41)
             }
-            Divider()
-            Toggle("Recurring Transfer Reminders", isOn: Binding(
+        }
+        VStack(alignment: .leading, spacing: 6) {
+            Toggle(isOn: Binding(
                 get: { transferRemindersEnabled },
                 set: { newValue in
                     RecurringTransferNotifications.setEnabled(newValue, transfers: store.state.recurringTransfers) { granted in
                         transferRemindersEnabled = granted
                     }
                 }
-            ))
+            )) {
+                SettingsLabel("Transfer Reminders", systemImage: "bell.fill", color: Color(hex: "#30B0C7"))
+            }
             if transferRemindersEnabled && !store.state.recurringTransfers.contains(where: { $0.isActive }) {
                 Text("Turn on a recurring transfer to start getting reminders.")
                     .font(.caption).foregroundStyle(Color.helperText)
+                    .padding(.leading, 41)
             }
-        }
-    }
-
-    @ViewBuilder
-    private var dataCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Button("Export Backup") { startExport() }
-            Divider()
-            Button("Import Backup") { showImporter = true }
-            Divider()
-            Button("Reset All Data", role: .destructive) { showResetConfirm = true }
         }
     }
 
@@ -265,11 +279,18 @@ struct SettingsView: View {
     private func tabColorRow(_ tab: AppTab) -> some View {
         Button { editingColorTab = tab } label: {
             HStack {
-                Text(tab.label).foregroundStyle(.primary)
+                SettingsLabel(tab.label, systemImage: tab.systemImage, color: store.accentColor(for: tab))
                 Spacer()
-                Circle().fill(store.accentColor(for: tab)).frame(width: 20, height: 20)
+                Circle()
+                    .fill(store.accentColor(for: tab))
+                    .frame(width: 18, height: 18)
+                    .overlay(Circle().strokeBorder(Color.primary.opacity(0.1), lineWidth: 1))
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.tertiary)
             }
         }
+        .foregroundStyle(.primary)
     }
 
     private func startExport() {
@@ -295,6 +316,40 @@ struct SettingsView: View {
             showImportConfirm = true
         } catch {
             dataMessage = error.localizedDescription
+        }
+    }
+}
+
+// iOS-Settings-style row label: a colored icon tile followed by the title.
+struct SettingsLabel: View {
+    let title: String
+    let systemImage: String
+    let color: Color
+    var titleColor: Color = .primary
+
+    init(_ title: String, systemImage: String, color: Color, titleColor: Color = .primary) {
+        self.title = title
+        self.systemImage = systemImage
+        self.color = color
+        self.titleColor = titleColor
+    }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            IconTile(systemName: systemImage, color: color, size: 29)
+            Text(title)
+                .foregroundStyle(titleColor)
+        }
+    }
+}
+
+extension AppTab {
+    var systemImage: String {
+        switch self {
+        case .ledger:        return "house.fill"
+        case .add:           return "plus"
+        case .subscriptions: return "calendar"
+        case .settings:      return "gearshape.fill"
         }
     }
 }

@@ -32,6 +32,7 @@ struct TabColorPickerView: View {
                     }
                 }
             }
+            .screenBackground()
             .navigationTitle(tab.label)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

@@ -34,6 +34,7 @@ struct CreditCardAddView: View {
                         .foregroundStyle(Color.helperText)
                 }
             }
+            .screenBackground()
             .navigationTitle("New Credit Card")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -50,16 +51,5 @@ struct CreditCardAddView: View {
                 }
             }
         }
-    }
-
-    private func ordinal(_ n: Int) -> String {
-        let suffix: String
-        switch (n % 10, n % 100) {
-        case (1, let h) where h != 11: suffix = "st"
-        case (2, let h) where h != 12: suffix = "nd"
-        case (3, let h) where h != 13: suffix = "rd"
-        default: suffix = "th"
-        }
-        return "\(n)\(suffix)"
     }
 }

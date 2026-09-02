@@ -48,6 +48,7 @@ struct AdjustBucketsView: View {
                     }
                 }
             }
+            .screenBackground()
             .navigationTitle("Adjust Buckets")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

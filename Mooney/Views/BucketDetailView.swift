@@ -21,6 +21,7 @@ struct BucketDetailView: View {
                     BucketDetailContent(bucket: bucket) { other in bucketId = other.id }
                 } else {
                     ContentUnavailableView("Bucket Removed", systemImage: "tray")
+                        .screenBackground()
                 }
             }
             .toolbar {
@@ -52,6 +53,10 @@ private struct BucketDetailContent: View {
     var balance: Double { store.balance(for: bucket.id) }
     var lastA: Double   { store.lastAlloc(for: bucket.id) }
     var goalMet: Bool   { bucket.goal.map { balance >= $0 } ?? false }
+    var goalProgress: Double? {
+        guard !bucket.isSpending, let goal = bucket.goal, goal > 0 else { return nil }
+        return balance / goal
+    }
 
     var daysLeft: Int? {
         guard let goalDate = bucket.goalDate,
@@ -71,7 +76,12 @@ private struct BucketDetailContent: View {
     }
 
     struct HistoryItem: Identifiable {
-        var id: String; var date: String; var amount: Double; var label: String; var isTransaction: Bool
+        var id: String
+        var date: String
+        var amount: Double
+        var label: String
+        var isTransaction: Bool
+        var kind: LedgerEntry.Kind
     }
 
     var history: [HistoryItem] {
@@ -79,11 +89,13 @@ private struct BucketDetailContent: View {
         for p in store.state.incomes {
             if let a = p.allocations.first(where: { $0.bucketId == bucket.id }) {
                 items.append(.init(id: p.id, date: p.date, amount: a.amount,
-                                   label: p.note.isEmpty ? "Income" : p.note, isTransaction: false))
+                                   label: p.note.isEmpty ? "Income" : p.note, isTransaction: false, kind: .income))
             }
         }
         for t in store.state.transactions.filter({ $0.bucketId == bucket.id }) {
-            items.append(.init(id: t.id, date: t.date, amount: t.amount, label: t.note, isTransaction: true))
+            items.append(.init(id: t.id, date: t.date, amount: t.amount,
+                               label: t.note.isEmpty ? t.type.capitalized : t.note, isTransaction: true,
+                               kind: LedgerEntry.kind(forTransactionType: t.type, isLinkedTransfer: t.linkedId != nil)))
         }
         return items.sorted { $0.date > $1.date }
     }
@@ -99,199 +111,255 @@ private struct BucketDetailContent: View {
 
     var body: some View {
         List {
-            headerSection
-            spendSection
+            Section { headerCard }.cardRow()
+            Section { actionsCard }.cardRow()
             chartSection
             historySection
             otherBucketsSection
         }
-        .listStyle(.plain)
+        .listStyle(.insetGrouped)
+        .listSectionSpacing(14)
+        .screenBackground()
         .navigationTitle(bucket.name)
         .navigationBarTitleDisplayMode(.inline)
     }
 
-    @ViewBuilder
-    private var headerSection: some View {
-        Section {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack(spacing: 8) {
-                    RoundedRectangle(cornerRadius: 2)
-                        .fill(bucket.color)
-                        .frame(width: 10, height: 10)
-                    Text(bucket.name)
-                        .font(.system(size: 26, weight: .bold))
-                }
-                Text(fmt(bucket.isSpending ? lastA : balance))
-                    .font(.system(size: 38, weight: .bold))
-                    .monospacedDigit()
+    // MARK: - Header
 
-                if !bucket.isSpending, let goal = bucket.goal {
-                    let pct = min(Int((balance / goal) * 100), 100)
-                    VStack(alignment: .leading, spacing: 6) {
+    private var headerCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 8) {
+                        BucketBadge(bucket: bucket, size: 28)
+                        Text(bucket.isSpending ? "Spending" : (bucket.isGeneral ? "Main Savings" : "Savings Bucket"))
+                            .sectionLabelStyle()
+                    }
+                    Text(fmt(bucket.isSpending ? lastA : balance))
+                        .font(.system(size: 40, weight: .bold, design: .rounded))
+                        .monospacedDigit()
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
+                        .contentTransition(.numericText())
+                        .animation(.snappy, value: balance)
+                    if bucket.isSpending {
+                        Text("Allocated this check")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else if let goal = bucket.goal {
                         HStack(spacing: 4) {
                             Text("of \(fmt(goal))")
                             if let daysLeft { Text("· \(daysLeft) days left") }
                         }
-                        .font(.caption).foregroundStyle(.secondary)
-
-                        ProgressView(value: min(balance / goal, 1.0))
-                            .tint(goalMet ? Color(hex: "#F59E0B") : bucket.color)
-
-                        HStack {
-                            Text(goalMet ? "Goal reached" : "\(pct)% saved")
-                            Spacer()
-                            if !goalMet {
-                                Text("\(fmt(max(goal - balance, 0))) to go")
-                            }
-                        }
                         .font(.caption)
-                        .foregroundStyle(goalMet ? Color(hex: "#F59E0B") : .secondary)
+                        .foregroundStyle(.secondary)
+                    } else if let daysLeft {
+                        Text("\(daysLeft) days left")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
-                } else if bucket.isSpending {
-                    Text("This check").font(.caption).foregroundStyle(.secondary)
-                } else if let daysLeft {
-                    Text("\(daysLeft) days left").font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer()
+                if let goalProgress {
+                    ZStack {
+                        GoalRing(progress: goalProgress, color: goalMet ? .green : bucket.color, size: 68, lineWidth: 7)
+                        if goalMet {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 20, weight: .bold))
+                                .foregroundStyle(.green)
+                        } else {
+                            Text("\(Int((min(goalProgress, 1) * 100).rounded()))%")
+                                .font(.system(size: 14, weight: .bold, design: .rounded))
+                                .monospacedDigit()
+                        }
+                    }
                 }
             }
-            .padding(.vertical, 4)
-            .bubbleCard()
+            if let goal = bucket.goal, !bucket.isSpending {
+                HStack {
+                    Text(goalMet ? "Goal reached 🎉" : "\(fmt(max(goal - balance, 0))) to go")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(goalMet ? Color.green : bucket.color)
+                    Spacer()
+                    if !goalMet, let suggested = store.suggestedGoalContribution(for: bucket), suggested > 0 {
+                        Text("\(fmt(suggested)) per check")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
         }
-        .listRowBackground(Color.clear)
-        .listRowSeparator(.hidden)
+        .heroCard(tint: bucket.color)
     }
 
+    // MARK: - Actions
+
     @ViewBuilder
-    private var spendSection: some View {
+    private var actionsCard: some View {
         if bucket.isSpending {
-            Section {
+            HStack(spacing: 12) {
+                SoftIconTile(systemName: "info", color: bucket.color, size: 30)
                 Text("This is your spending account. Allocations are logged each income — no need to track individual purchases here.")
-                    .font(.callout).foregroundStyle(Color.helperText)
-                    .bubbleCard()
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
             }
-            .listRowBackground(Color.clear)
-            .listRowSeparator(.hidden)
+            .surfaceCard()
         } else {
-            Section {
-                Group {
-                    if showSpendForm {
-                        VStack(spacing: 10) {
-                            HStack {
-                                Text("$").foregroundStyle(.secondary)
-                                TextField("0.00", text: $spendAmt).keyboardType(.decimalPad)
-                                Divider()
-                                TextField("Note", text: $spendNote)
-                            }
-                            HStack(spacing: 10) {
-                                Button("Save") { saveSpend() }
-                                    .buttonStyle(.borderedProminent).tint(bucket.color)
-                                Button("Cancel") {
-                                    showSpendForm = false; spendAmt = ""; spendNote = ""
-                                }
-                                .buttonStyle(.bordered)
-                            }
+            Group {
+                if showSpendForm {
+                    VStack(spacing: 12) {
+                        HStack(spacing: 10) {
+                            Text("Spend").sectionLabelStyle()
+                            Spacer()
                         }
-                    } else if showTransferForm {
-                        VStack(spacing: 10) {
-                            Picker("Direction", selection: $transferDirection) {
-                                Text("To").tag(TransferDirection.to)
-                                Text("From").tag(TransferDirection.from)
+                        entryFields(amount: $spendAmt, note: $spendNote, notePlaceholder: "What was it for?")
+                        HStack(spacing: 10) {
+                            Button("Cancel") {
+                                showSpendForm = false; spendAmt = ""; spendNote = ""
                             }
-                            .pickerStyle(.segmented)
-                            Picker(transferDirection == .to ? "To" : "From", selection: $transferOtherId) {
+                            .buttonStyle(.pill(.secondary))
+                            Button {
+                                saveSpend()
+                            } label: {
+                                Text("Log Spending").frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.pill(bucket.color, prominent: true))
+                            .disabled((Double(spendAmt) ?? 0) <= 0)
+                        }
+                    }
+                } else if showTransferForm {
+                    VStack(spacing: 12) {
+                        Picker("Direction", selection: $transferDirection) {
+                            Text("Move out").tag(TransferDirection.to)
+                            Text("Move in").tag(TransferDirection.from)
+                        }
+                        .pickerStyle(.segmented)
+                        HStack {
+                            Text(transferDirection == .to ? "To" : "From")
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Picker("", selection: $transferOtherId) {
                                 ForEach(transferTargets) { other in
                                     Text(other.name).tag(Optional(other.id))
                                 }
                             }
                             .pickerStyle(.menu)
-                            HStack {
-                                Text("$").foregroundStyle(.secondary)
-                                TextField("0.00", text: $transferAmt).keyboardType(.decimalPad)
-                                Divider()
-                                TextField("Note", text: $transferNote)
-                            }
-                            HStack(spacing: 10) {
-                                Button("Transfer") { saveTransfer() }
-                                    .buttonStyle(.borderedProminent).tint(bucket.color)
-                                    .disabled(transferOtherId == nil)
-                                Button("Cancel") { resetTransferForm() }
-                                    .buttonStyle(.bordered)
-                            }
+                            .tint(bucket.color)
                         }
-                    } else {
+                        entryFields(amount: $transferAmt, note: $transferNote, notePlaceholder: "Note (optional)")
                         HStack(spacing: 10) {
+                            Button("Cancel") { resetTransferForm() }
+                                .buttonStyle(.pill(.secondary))
                             Button {
-                                showSpendForm = true
+                                saveTransfer()
                             } label: {
-                                Label("Spend", systemImage: "minus.circle")
-                                    .lineLimit(1)
+                                Text("Transfer").frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.pill(bucket.color, prominent: true))
+                            .disabled(transferOtherId == nil || (Double(transferAmt) ?? 0) <= 0)
+                        }
+                    }
+                } else {
+                    HStack(spacing: 10) {
+                        Button {
+                            withAnimation(.snappy) { showSpendForm = true }
+                        } label: {
+                            Label("Spend", systemImage: "minus.circle.fill")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.pill(bucket.color))
+
+                        if !transferTargets.isEmpty {
+                            Button {
+                                transferDirection = .to
+                                transferOtherId = transferTargets.first?.id
+                                withAnimation(.snappy) { showTransferForm = true }
+                            } label: {
+                                Label("Transfer", systemImage: "arrow.left.arrow.right")
                                     .frame(maxWidth: .infinity)
                             }
-                            .buttonStyle(.bordered)
-                            .tint(bucket.color)
-
-                            if !transferTargets.isEmpty {
-                                Button {
-                                    transferDirection = .to
-                                    transferOtherId = transferTargets.first?.id
-                                    showTransferForm = true
-                                } label: {
-                                    Label("Transfer", systemImage: "arrow.left.arrow.right")
-                                        .frame(maxWidth: .infinity)
-                                }
-                                .buttonStyle(.bordered)
-                                .tint(bucket.color)
-                            }
+                            .buttonStyle(.pill(bucket.color))
                         }
-                        .labelStyle(.titleAndIcon)
-                        .font(.subheadline)
                     }
                 }
-                .bubbleCard()
             }
-            .listRowBackground(Color.clear)
-            .listRowSeparator(.hidden)
+            .surfaceCard()
         }
     }
+
+    @ViewBuilder
+    private func entryFields(amount: Binding<String>, note: Binding<String>, notePlaceholder: String) -> some View {
+        VStack(spacing: 8) {
+            HStack(spacing: 4) {
+                Text("$")
+                    .font(.system(size: 20, weight: .bold, design: .rounded))
+                    .foregroundStyle(.secondary)
+                TextField("0.00", text: amount)
+                    .keyboardType(.decimalPad)
+                    .font(.system(size: 26, weight: .bold, design: .rounded))
+                    .monospacedDigit()
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.primary.opacity(0.05)))
+            TextField(notePlaceholder, text: note)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.primary.opacity(0.05)))
+        }
+    }
+
+    // MARK: - Chart
 
     @ViewBuilder
     private var chartSection: some View {
         if barData.count > 1 {
             Section("Contribution History") {
-                Chart(barData, id: \.index) { item in
-                    BarMark(x: .value("Pay", item.index),
-                            y: .value("Amount", item.value))
-                    .foregroundStyle(bucket.color.opacity(0.75))
-                    .cornerRadius(3)
+                VStack(alignment: .leading, spacing: 8) {
+                    Chart(barData, id: \.index) { item in
+                        BarMark(x: .value("Pay", item.index),
+                                y: .value("Amount", item.value))
+                        .foregroundStyle(bucket.color.gradient)
+                        .cornerRadius(4)
+                    }
+                    .chartXAxis(.hidden)
+                    .chartYAxis(.hidden)
+                    .frame(height: 72)
+                    Text("Last \(barData.count) paychecks · avg \(fmt(store.averageAlloc(for: bucket.id)))")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
-                .chartXAxis(.hidden)
-                .chartYAxis(.hidden)
-                .frame(height: 64)
-                .bubbleCard()
+                .surfaceCard()
             }
-            .listRowBackground(Color.clear)
-            .listRowSeparator(.hidden)
+            .cardRow()
         }
     }
+
+    // MARK: - History
 
     @ViewBuilder
     private var historySection: some View {
         Section("Transactions") {
             if history.isEmpty {
-                Text("No transactions yet").foregroundStyle(.secondary)
+                HStack(spacing: 12) {
+                    SoftIconTile(systemName: "tray", color: .secondary, size: 30)
+                    Text("No transactions yet").foregroundStyle(.secondary)
+                }
             } else {
                 ForEach(history) { (item: HistoryItem) in
-                    HStack {
+                    HStack(spacing: 12) {
+                        IconTile(systemName: item.kind.systemImage,
+                                 color: item.kind == .income ? Color(hex: "#34C759") : bucket.color,
+                                 size: 32)
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(item.label)
+                            Text(item.label).lineLimit(1)
                             Text(fmtDate(item.date))
                                 .font(.caption).foregroundStyle(.secondary)
                         }
                         Spacer()
-                        Text((item.amount >= 0 ? "+" : "") + fmt(item.amount))
-                            .fontWeight(.semibold)
-                            .monospacedDigit()
-                            .foregroundStyle(item.amount >= 0 ? .green : Color.primary)
+                        AmountText(amount: item.amount)
                     }
+                    .padding(.vertical, 1)
                     .swipeActions(edge: .trailing, allowsFullSwipe: item.isTransaction) {
                         if item.isTransaction {
                             Button("Delete", role: .destructive) {
@@ -299,38 +367,41 @@ private struct BucketDetailContent: View {
                             }
                         }
                     }
-                    .bubbleCardRow()
                 }
             }
         }
     }
 
+    // MARK: - Other buckets
+
     @ViewBuilder
     private var otherBucketsSection: some View {
         if !otherBuckets.isEmpty {
             Section("Other Buckets") {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 110), spacing: 8)], alignment: .leading, spacing: 8) {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 120), spacing: 8)], alignment: .leading, spacing: 8) {
                     ForEach(otherBuckets) { other in
                         Button { switchTo(other) } label: {
                             HStack(spacing: 6) {
-                                RoundedRectangle(cornerRadius: 2)
-                                    .fill(other.color)
-                                    .frame(width: 10, height: 10)
+                                BucketBadge(bucket: other, size: 18)
                                 Text(other.name)
-                                    .font(.system(size: 13, weight: .medium))
+                                    .font(.caption.weight(.semibold))
                                     .foregroundStyle(.primary)
+                                    .lineLimit(1)
                             }
                             .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
-                            .overlay(Capsule().stroke(Color.secondary.opacity(0.25), lineWidth: 1))
+                            .padding(.vertical, 7)
+                            .background(Capsule().fill(other.color.opacity(0.14)))
                         }
                         .buttonStyle(.plain)
                     }
                 }
-                .padding(.vertical, 4)
+                .padding(.vertical, 2)
             }
+            .cardRow()
         }
     }
+
+    // MARK: - Actions
 
     private func saveSpend() {
         guard let amt = Double(spendAmt), amt > 0 else { return }
@@ -340,7 +411,8 @@ private struct BucketDetailContent: View {
             note: spendNote.isEmpty ? "Spending" : spendNote,
             type: "spend"
         ))
-        showSpendForm = false; spendAmt = ""; spendNote = ""
+        withAnimation(.snappy) { showSpendForm = false }
+        spendAmt = ""; spendNote = ""
     }
 
     private func saveTransfer() {
@@ -351,6 +423,7 @@ private struct BucketDetailContent: View {
     }
 
     private func resetTransferForm() {
-        showTransferForm = false; transferAmt = ""; transferNote = ""; transferOtherId = nil
+        withAnimation(.snappy) { showTransferForm = false }
+        transferAmt = ""; transferNote = ""; transferOtherId = nil
     }
 }

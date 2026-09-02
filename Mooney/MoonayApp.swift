@@ -11,10 +11,9 @@ struct MoonayApp: App {
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
-        // Applies to every List in the app in one place, rather than each
-        // screen individually — a Spotify-style near-black instead of pure
-        // system black.
-        UITableView.appearance().backgroundColor = UIColor(Color(hex: appBackgroundHex))
+        // The screen background is applied per-List via .screenBackground()
+        // (DesignSystem.swift) — SwiftUI's List is collection-view backed on
+        // iOS 16+, so a UITableView appearance proxy never reached it.
         MoonayApp.registerRefreshTask()
     }
 

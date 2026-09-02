@@ -60,6 +60,7 @@ When adding a new "what does the user need to see right now" surface, prefer a c
 - `XAddView` / `XEditView` pairs per model (e.g. `BucketAddView`/`BucketEditView`).
 - `XSettingsView` for management screens pushed from the Settings tab (`BucketsSettingsView`, `BillsSettingsView`, `IncomeSourcesSettingsView`, `RecurringTransfersSettingsView`).
 - `XRow` for list-row subviews reused across screens (`BucketSettingRow`, `RecurringTransferRow`).
+- Shared look lives in `Views/DesignSystem.swift`. Every screen is an `.insetGrouped` List/Form with `.screenBackground()` (near-black in dark mode, grouped gray in light) — never a `.plain` list with per-row bubbles. Non-row content (hero balance, bucket grid, charts, stat tiles) goes in a Section with `.cardRow()` and uses `.surfaceCard()` / `.heroCard(tint:)`; row identity marks are `IconTile` / `BucketBadge`; small actions use `.buttonStyle(.pill(color))`; on/off state uses `StatusChip`; "+ New X" list rows use `AddRow`.
 - Data-entry `Picker`s use `.pickerStyle(.menu)` (a compact in-place dropdown) — reserve the default push-to-a-new-screen picker style for nothing; reserve `.pickerStyle(.segmented)` for view-mode switches that aren't form fields (e.g. the History range picker, the subscription sort picker).
 - `SettingsView.swift` itself is intentionally a short top-level menu, not a place to inline CRUD lists — that's what the `*SettingsView` screens above are for.
 

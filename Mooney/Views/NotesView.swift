@@ -74,6 +74,7 @@ struct NotesView: View {
             }
         }
         .listStyle(.insetGrouped)
+        .screenBackground()
         .navigationTitle("Notes")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

@@ -23,17 +23,23 @@ struct BucketsSettingsView: View {
             }
 
             if !inactive.isEmpty {
-                Section("Planned Buckets") {
+                Section {
                     ForEach(inactive) { b in
                         BucketSettingRow(bucket: b) { editingBucket = b }
                     }
                     .onMove { store.moveBuckets(from: $0, to: $1, among: inactive) }
+                } header: {
+                    Text("Planned Buckets")
+                } footer: {
+                    Text("Paused buckets stay out of the Ledger and Add tab, but any money in them still counts toward your total.")
                 }
             }
 
             Section {
-                Button("+ New Bucket") { showAddBucket = true }
-                    .foregroundStyle(accentColor)
+                Button { showAddBucket = true } label: {
+                    AddRow(title: "New Bucket", tint: accentColor)
+                }
+                .buttonStyle(.plain)
             }
 
             if !archived.isEmpty {
@@ -46,7 +52,8 @@ struct BucketsSettingsView: View {
                 }
             }
         }
-        .listStyle(.plain)
+        .listStyle(.insetGrouped)
+        .screenBackground()
         .navigationTitle("Buckets")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { EditButton() }

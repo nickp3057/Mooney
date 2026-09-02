@@ -24,6 +24,7 @@ struct ResetDataView: View {
                     .disabled(resetText != "Lauren")
                 }
             }
+            .screenBackground()
             .navigationTitle("Reset Data")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

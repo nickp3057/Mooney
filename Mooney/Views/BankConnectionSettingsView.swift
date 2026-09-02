@@ -111,6 +111,7 @@ struct BankConnectionSettingsView: View {
             }
         }
         .listStyle(.insetGrouped)
+        .screenBackground()
         .navigationTitle("Bank Connection")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $isPresentingLink) {
